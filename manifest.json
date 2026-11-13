@@ -1,0 +1,169 @@
+{
+  "id": "/",
+  "name": "Findorah",
+  "short_name": "Findorah",
+  "description": "Shop, eat, stay and explore in Zambia: stores, books, vehicles, accommodation, housing, restaurants, play parks and tourism.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": [
+    "window-controls-overlay",
+    "tabbed",
+    "standalone"
+  ],
+  "tab_strip": {
+    "home_tab": "auto",
+    "new_tab_button": {
+      "url": "/"
+    }
+  },
+  "orientation": "any",
+  "background_color": "#0d0d0d",
+  "theme_color": "#0d0d0d",
+  "lang": "en",
+  "categories": [
+    "shopping",
+    "lifestyle"
+  ],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/wide-home.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Browse books, stores, vehicles, accommodation and housing"
+    },
+    {
+      "src": "/screenshots/wide-housing.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Find houses and apartments to rent or buy"
+    },
+    {
+      "src": "/screenshots/narrow-home.png",
+      "sizes": "720x1280",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Everything in one marketplace"
+    },
+    {
+      "src": "/screenshots/narrow-stores.png",
+      "sizes": "720x1280",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Discover verified stores near you"
+    },
+    {
+      "src": "/screenshots/narrow-accommodation.png",
+      "sizes": "720x1280",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Hotels, lodges, guest houses and more"
+    }
+  ],
+  "launch_handler": {
+    "client_mode": [
+      "navigate-existing",
+      "auto"
+    ]
+  },
+  "file_handlers": [
+    {
+      "action": "/?source=file",
+      "name": "Start a Findorah listing with these photos",
+      "accept": {
+        "image/jpeg": [
+          ".jpg",
+          ".jpeg"
+        ],
+        "image/png": [
+          ".png"
+        ],
+        "image/webp": [
+          ".webp"
+        ]
+      },
+      "launch_type": "single-client"
+    }
+  ],
+  "protocol_handlers": [
+    {
+      "protocol": "web+findorah",
+      "url": "/?protocol=%s"
+    }
+  ],
+  "share_target": {
+    "action": "/share-target",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url",
+      "files": [
+        {
+          "name": "photos",
+          "accept": [
+            "image/*"
+          ]
+        }
+      ]
+    }
+  },
+  "widgets": [
+    {
+      "name": "Latest on Findorah",
+      "short_name": "Latest",
+      "description": "The newest listings on Findorah, at a glance.",
+      "tag": "latest-listings",
+      "ms_ac_template": "/widgets/latest-template.json",
+      "data": "/widgets/latest-data.json",
+      "type": "application/json",
+      "auth": false,
+      "update": 21600,
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ],
+      "screenshots": [
+        {
+          "src": "/screenshots/widget.png",
+          "sizes": "387x387",
+          "label": "Latest listings widget"
+        }
+      ]
+    }
+  ],
+  "edge_side_panel": {
+    "preferred_width": 400
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "type": "AdaptiveCard",
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "version": "1.5",
+  "body": [
+    {
+      "type": "TextBlock",
+      "text": "Latest on Findorah",
+      "weight": "Bolder",
+      "size": "Medium",
+      "color": "Accent"
+    },
+    {
+      "type": "Container",
+      "$data": "${items}",
+      "spacing": "Small",
+      "items": [
+        { "type": "TextBlock", "text": "${title}", "weight": "Bolder", "wrap": true, "maxLines": 1 },
+        { "type": "TextBlock", "text": "${meta}", "isSubtle": true, "spacing": "None", "wrap": true, "maxLines": 1 }
+      ]
+    }
+  ],
+  "actions": [
+    { "type": "Action.Execute", "title": "Open Findorah", "verb": "open" }
+  ]
+}
