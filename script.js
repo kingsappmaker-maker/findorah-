@@ -172,7 +172,7 @@
   }
 
   function tidyListing(l) {
-    return { ...l, title: tidyTitle(l.title), seller_name: tidyTitle(l.seller_name), author: tidyTitle(l.author), location: tidyTitle(l.location), make: tidyTitle(l.make), model: tidyTitle(l.model), colour: tidyTitle(l.colour), mileage: l.mileage ? fmtMileage(l.mileage) : l.mileage };
+    return { ...l, title: tidyTitle(l.title), seller_name: tidyTitle(l.seller_name), location: tidyTitle(l.location), make: tidyTitle(l.make), model: tidyTitle(l.model), colour: tidyTitle(l.colour), mileage: l.mileage ? fmtMileage(l.mileage) : l.mileage };
   }
 
   // "50000" -> "50,000 km"
@@ -393,23 +393,73 @@
   }
 
   function bizCardHtml(item) {
-    const imgs = item.images || [];
+    const id = String(item.id).replace(/[^\w-]/g, "");
     const st = openStatus(item);
-    const pill = st ? `<span class="lc-badge lc-open${st.open ? "" : " closed"}">${st.open ? "Open" : "Closed"}</span>` : "";
-    const kind = [
-      item.subcategory ? escapeHtml(item.subcategory) : "",
-      item.location ? `<i class="fas fa-map-marker-alt bc-pin" aria-hidden="true"></i>${escapeHtml(item.location)}` : ""
-    ].filter(Boolean).join(" · ");
-    const logo = item.logo ? `<div class="bc-logo"><img alt="" src="${escapeHtml(item.logo)}"></div>` : "";
+    const badge = st
+      ? `<span class="lc-badge lc-open${st.open ? "" : " closed"}">${st.open ? "Open" : "Closed"}</span>`
+      : "";
+    const initials = String(item.title || "?").trim().split(/\s+/).slice(0, 2).map((w) => w.charAt(0)).join("").toUpperCase();
+    const logo = item.logo
+      ? `<div class="bc-logo"><img alt="" loading="lazy" src="${escapeHtml(item.logo)}"></div>`
+      : `<div class="bc-logo">${escapeHtml(initials)}</div>`;
+    // storefront area: up to 8 of the store's product photos you can swipe through (cover photo if there are none)
+    let photos = catalogItems(item).map((p) => p.image).filter(Boolean).slice(0, 8);
+    if (!photos.length && item.images && item.images.length) photos = [item.images[0]];
+    const gallery = photos.length
+      ? `<div class="bc-gallery">${photos.map((u) => `<img alt="${escapeHtml(item.title)}" loading="lazy" draggable="false" src="${escapeHtml(u)}">`).join("")}</div>`
+      : "";
+    const count = photos.length > 1 ? `<div class="bc-dots">${photos.map((_, i) => `<i${i ? "" : ' class="on"'}></i>`).join("")}</div>` : "";
+    const place = item.location ? `<i class="fas fa-map-marker-alt bc-pin"></i>${escapeHtml(item.location)}` : "";
+    const meta = [item.subcategory ? escapeHtml(item.subcategory) : "", place].filter(Boolean).join(" · ");
     return `
-      <div class="listing-card store-card biz-card${item.logo ? " has-logo" : ""}" onclick="window.openDetail('${String(item.id).replace(/[^\w-]/g, "")}')">
-        <div class="lc-img-wrap">${imgs.length ? `<img src="${escapeHtml(imgs[0])}" alt="${escapeHtml(item.title)}" loading="lazy">` : ""}${pill}${cardHeartHtml(item)}${logo}</div>
+      <div class="listing-card store-card biz-card has-logo" onclick="window.openDetail('${id}')">
+        <div class="lc-img-wrap">${gallery}${badge}${cardHeartHtml(item)}${count}${logo}</div>
         <div class="lc-body">
-          <div class="bc-name">${escapeHtml(item.title)}</div>
-          ${kind ? `<div class="bc-line">${kind}</div>` : ""}
+          <div class="lc-title">${escapeHtml(item.title)}</div>
+          ${meta ? `<div class="lc-meta">${meta}</div>` : ""}
         </div>
       </div>`;
   }
+
+  // store card photo gallery: animated dots follow the swipe, and the photos auto-advance
+  (function () {
+    const idx = (g) => Math.min(g.children.length - 1, Math.max(0, Math.round(g.scrollLeft / (g.clientWidth || 1))));
+    document.addEventListener("scroll", (e) => {
+      const g = e.target;
+      if (!g || !g.classList || !g.classList.contains("bc-gallery")) return;
+      const dots = g.parentNode.querySelectorAll(".bc-dots i");
+      const n = idx(g);
+      dots.forEach((d, i) => d.classList.toggle("on", i === n));
+    }, true);
+    const touched = new WeakMap();
+    const mark = (e) => {
+      const g = e.target.closest && e.target.closest(".bc-gallery");
+      if (g) touched.set(g, Date.now());
+    };
+    ["pointerdown", "touchstart", "wheel"].forEach((ev) => document.addEventListener(ev, mark, { passive: true }));
+    const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) return;
+    let cur = null, left = 0;
+    const next = (g) => g.scrollTo({ left: ((idx(g) + 1) % g.children.length) * g.clientWidth, behavior: "smooth" });
+    setInterval(() => {
+      if (document.hidden) return;
+      // only cards you can see, not touched in the last 6 seconds
+      const ready = [...document.querySelectorAll(".bc-gallery")].filter((g) => {
+        if (g.children.length < 2) return false;
+        const r = g.getBoundingClientRect();
+        if (r.bottom < 0 || r.top > window.innerHeight || !r.width) return false;
+        return Date.now() - (touched.get(g) || 0) >= 6000;
+      });
+      if (!ready.length) { cur = null; return; }
+      // one card plays through all its photos, then the next card takes over, so two cards never move together
+      if (!cur || left <= 0 || !ready.includes(cur)) {
+        cur = ready[(ready.indexOf(cur) + 1) % ready.length];
+        left = cur.children.length;
+      }
+      next(cur);
+      left--;
+    }, 3500);
+  })();
 
   function richCardHtml(item) {
     const c = item.main_category;
@@ -447,8 +497,7 @@
       item.images && item.images.length
         ? `<img src="${escapeHtml(item.images[0])}" alt="${escapeHtml(item.title)}" loading="lazy">`
         : "";
-    const isBook = item.main_category === "books";
-    const badge = (isBook || isStore || isBizItem || isStay || isHousing) && item.subcategory
+    const badge = (isStore || isBizItem || isStay || isHousing) && item.subcategory
       ? `<span class="lc-badge">${escapeHtml(item.subcategory)}</span>`
       : "";
     const priceText = isStay && item.price
@@ -462,8 +511,6 @@
       if (item.mileage) metaParts.push(item.mileage);
       if (item.transmission) metaParts.push(item.transmission);
       if (item.location) metaParts.push(item.location);
-    } else if (item.main_category === "books") {
-      if (item.author) metaParts.push("by " + item.author);
     } else if (isStore || isBizItem) {
       if (item.store_tagline) metaParts.push(item.store_tagline);
       const n = Array.isArray(item.products) ? item.products.length : 0;
@@ -486,7 +533,7 @@
       : `<div class="lc-price">${escapeHtml(priceText)}</div>`;
 
     return `
-      <div class="listing-card${isStore || isBizItem || isBook ? " store-card" : ""}${isBook ? " book-card" : ""}" onclick="window.openDetail('${String(item.id).replace(/[^\w-]/g, "")}')">
+      <div class="listing-card${isStore || isBizItem ? " store-card" : ""}" onclick="window.openDetail('${String(item.id).replace(/[^\w-]/g, "")}')">
         <div class="lc-img-wrap">${img}${badge}</div>
         <div class="lc-body">
           <div class="lc-title">${escapeHtml(item.title)}</div>
@@ -1256,7 +1303,7 @@
     const pool = state.listings.filter((l) => l.status === "published" && String(l.id) !== String(item.id));
     let sellerList = [];
     if (c === "vehicles") {
-      sellerList = pool.filter((l) => (item.owner_id && l.owner_id === item.owner_id) || (!item.owner_id && l.phone && l.phone === item.phone)).slice(0, 8);
+      sellerList = pool.filter((l) => l.main_category === "vehicles" && ((item.owner_id && l.owner_id === item.owner_id) || (!item.owner_id && l.phone && l.phone === item.phone))).slice(0, 8);
       if (sellerList.length) out += `<h2 class="dt-strip-h">More from this seller</h2><div class="dt-strip">${sellerList.map(miniTile).join("")}</div>`;
     }
     if (c === "accommodation") out += similarHtml(item);
@@ -1440,7 +1487,6 @@
   function aboutNoun(item) {
     const c = item.main_category;
     const sub = String(item.subcategory || "").toLowerCase();
-    if (c === "books") return "book";
     if (c === "vehicles") return "vehicle";
     if (c === "housing") return /apartment/.test(sub) ? "apartment" : "house";
     if (c === "accommodation") return sub || "place";
@@ -1454,12 +1500,11 @@
     const m = detailModel(item);
     const images = item.images && item.images.length ? item.images : [];
     const labels = item.main_category === "accommodation" && Array.isArray(item.photo_labels) ? item.photo_labels : [];
-    const isBook = item.main_category === "books";
     const isStay = item.main_category === "accommodation";
     let out = "";
 
     // photos (swipe strip with dots; accommodation photos are labelled by area)
-    out += `<div class="dt-gal${isBook ? " book" : ""}">`;
+    out += `<div class="dt-gal">`;
     out += images.length
       ? `<div class="dt-track" id="dtTrack">${images.map((src, i) => `<button type="button" data-i="${i}" aria-label="Open photo ${i + 1}"><img alt="${escapeHtml(labels[i] || "Photo " + (i + 1))}" src="${escapeHtml(src)}"></button>`).join("")}</div>
          ${labels[0] ? `<div class="dt-aoi" id="dtAoi">${escapeHtml(labels[0])}</div>` : ""}
@@ -1469,10 +1514,9 @@
     out += `</div>`;
 
     out += `<h1>${escapeHtml(item.title)}</h1>`;
-    if (isBook && hasVal(item.author)) out += `<p class="dt-sub">by ${escapeHtml(item.author)}</p>`;
-    else if (m.subline) out += `<p class="dt-sub">${escapeHtml(m.subline)}</p>`;
+    if (m.subline) out += `<p class="dt-sub">${escapeHtml(m.subline)}</p>`;
     out += statsRowHtml(item);
-    if (item.location && !isBook) out += `<a class="dt-map" href="${mapUrl(item)}" target="_blank" rel="noopener">${isStay ? "Open in Maps" : "Get directions"}</a>`;
+    if (item.location) out += `<a class="dt-map" href="${mapUrl(item)}" target="_blank" rel="noopener">${isStay ? "Open in Maps" : "Get directions"}</a>`;
     if (isStay) {
       const sm = ratingSummaryHtml(item);
       if (sm) out += `<p class="dt-rate">${sm}</p>`;
@@ -1706,7 +1750,7 @@
     let out = `<div class="ct-store"><div class="ct-av">${avatar}</div><div><h1>${escapeHtml(item.title)}</h1><div class="ct-sub">${subline}</div>${area ? `<a class="dt-map" href="${mapUrl(item)}" target="_blank" rel="noopener">Get directions</a>` : ""}</div></div>`;
     out += statsRowHtml(item);
     if (facts.length) out += `<div class="dt-facts" style="grid-template-columns:repeat(${facts.length},1fr)">${facts.slice(0, 3).map((f) => `<div><b>${escapeHtml(f[0])}</b><span>${escapeHtml(f[1])}</span></div>`).join("")}</div>`;
-    if (items.length) out += `<div class="ct-hd"><h2>${heading}</h2><span class="ct-sub">${items.length} item${items.length === 1 ? "" : "s"}</span></div><div class="ct-grid" id="ctGrid"></div><button type="button" class="ct-more" id="ctMore"></button>`;
+    if (items.length) out += `<div class="ct-hd"><h2>${heading}</h2><span class="ct-sub">${items.length} item${items.length === 1 ? "" : "s"}</span></div><div class="ct-grid${isRest ? "" : " ct-shop"}" id="ctGrid"></div><button type="button" class="ct-more" id="ctMore"></button>`;
     if (rows.length) out += `<h2>Details</h2>${rowsHtml(rows)}`;
     const desc = item.description || "";
     if (desc) {
@@ -1740,12 +1784,13 @@
     const grid = $("ctGrid");
     if (!grid) return;
     const list = CT.items.slice(0, CT.shown);
+    const shop = CT.item && CT.item.main_category !== "restaurants";
     grid.innerHTML = list
       .map((it, i) => {
         const pr = priceOrNone(it.price);
         const n = it.photos.length;
         const badge = n > 1 ? `<span class="ct-badge"><i class="fas fa-images" aria-hidden="true"></i>${n} photos</span>` : "";
-        return `<button type="button" class="ct-card" onclick="window.openProduct(${i})"><div class="im"><img alt="${escapeHtml(it.name || CT.item.title)}" loading="lazy" src="${escapeHtml(it.image)}">${badge}</div><div class="n">${escapeHtml(it.name || "")}</div>${pr ? `<div class="ct-p">${escapeHtml(pr)}</div>` : `<div class="ct-p none">Price on request</div>`}</button>`;
+        return `<button type="button" class="ct-card" onclick="window.openProduct(${i})"><div class="im"><img alt="${escapeHtml(it.name || CT.item.title)}" loading="lazy" src="${escapeHtml(it.image)}">${badge}</div>${shop ? `<div class="ct-row"><div class="n">${escapeHtml(it.name || "")}</div>${pr ? `<div class="ct-p">${escapeHtml(pr)}</div>` : `<div class="ct-p none">On request</div>`}</div>` : `<div class="n">${escapeHtml(it.name || "")}</div>${pr ? `<div class="ct-p">${escapeHtml(pr)}</div>` : `<div class="ct-p none">Price on request</div>`}`}</button>`;
       })
       .join("");
     const more = $("ctMore");
@@ -2291,9 +2336,6 @@
     [
       "p_title",
       "p_seller_name",
-      "p_author",
-      "p_publisher",
-      "p_isbn",
       "p_store_tagline",
       "p_opening_hours",
       "p_delivery",
@@ -2351,10 +2393,10 @@
       $("postCatName").textContent = meta.name;
     }
 
-    ["bookFields", "storeFields", "vehicleFields", "accommodationFields", "housingFields"].forEach((id) => {
+    ["storeFields", "vehicleFields", "accommodationFields", "housingFields"].forEach((id) => {
       $(id).style.display = "none";
     });
-    const fieldMap = { books: "bookFields", stores: "storeFields", vehicles: "vehicleFields", accommodation: "accommodationFields", housing: "housingFields" };
+    const fieldMap = { stores: "storeFields", vehicles: "vehicleFields", accommodation: "accommodationFields", housing: "housingFields" };
     Object.keys(BIZ).forEach((k) => (fieldMap[k] = "storeFields"));
     $(fieldMap[cat]).style.display = "";
     // store/business field wording
@@ -2396,11 +2438,9 @@
 
     state.mainCategory = cat;
 
-    // Books are listed by Findorah: no seller name or location needed
-    const isBookCat = cat === "books";
     $("priceRow").style.display = cat === "stores" || cat === "accommodation" ? "none" : "";
-    $("sellerRow").style.display = isBookCat || isBiz(cat) || cat === "stores" || cat === "accommodation" ? "none" : "";
-    $("locRow").style.display = isBookCat ? "none" : "";
+    $("sellerRow").style.display = isBiz(cat) || cat === "stores" || cat === "accommodation" ? "none" : "";
+    $("locRow").style.display = "";
     const limit = photoLimit();
     if (state.photoItems.length > limit) {
       state.photoItems.length = limit;
@@ -2817,24 +2857,20 @@
     const payload = {
       main_category: cat,
       title: tidyTitle($("p_title").value.trim()),
-      seller_name: cat === "books" ? "Findorah" : isBiz(cat) || cat === "stores" || cat === "accommodation" ? tidyTitle($("p_title").value.trim()) : tidyTitle($("p_seller_name").value.trim()),
+      seller_name: isBiz(cat) || cat === "stores" || cat === "accommodation" ? tidyTitle($("p_title").value.trim()) : tidyTitle($("p_seller_name").value.trim()),
       description: $("p_desc").value.trim(),
       price: cat === "stores" || cat === "accommodation" ? null : $("p_price").value.trim(),
-      location: cat === "books" ? "" : tidyTitle($("p_location").value.trim()),
+      location: tidyTitle($("p_location").value.trim()),
       phone: $("p_phone").value.trim(),
       website: $("p_website").value.trim(),
       status: state.isAdmin ? "published" : "pending"
     };
 
-    if (cat === "books" || cat === "stores" || cat === "accommodation" || cat === "housing" || isBiz(cat)) {
+    if (cat === "stores" || cat === "accommodation" || cat === "housing" || isBiz(cat)) {
       payload.subcategory = $("p_subcategory").value;
     }
 
-    if (cat === "books") {
-      payload.author = tidyTitle($("p_author").value.trim());
-      payload.publisher = $("p_publisher").value.trim();
-      payload.isbn = $("p_isbn").value.trim();
-    } else if (cat === "stores" || isBiz(cat)) {
+    if (cat === "stores" || isBiz(cat)) {
       payload.store_tagline = $("p_store_tagline").value.trim();
       payload.opening_hours = $("p_opening_hours").value.trim();
       payload.delivery = $("p_delivery").value.trim();
@@ -2868,8 +2904,7 @@
 
   function validateListing(payload) {
     if (!payload.title) return "Please enter a listing title.";
-    if (state.mainCategory === "books" && !payload.author) return "Please enter the author's name.";
-    if (!["books", "stores", "accommodation"].includes(state.mainCategory) && !isBiz(state.mainCategory) && !payload.seller_name) return "Please enter a business or seller name.";
+    if (!["stores", "accommodation"].includes(state.mainCategory) && !isBiz(state.mainCategory) && !payload.seller_name) return "Please enter a business or seller name.";
     if (!payload.phone) return "Please enter a WhatsApp or phone number.";
     if (usesProducts(state.mainCategory)) {
       if (state.products.some((p) => p.busy)) return "Photos are still being prepared. Wait a moment and tap Submit again.";
@@ -2878,7 +2913,7 @@
     }
     if (state.mainCategory === "accommodation" && !(payload.rooms && payload.rooms.length)) return "Add at least one room type with a price per night.";
     if ((payload.description || "").length < 40) return `Please write at least 40 characters in the description (${40 - (payload.description || "").length} more).`;
-    if ((state.mainCategory === "books" || state.mainCategory === "stores" || state.mainCategory === "accommodation" || state.mainCategory === "housing" || isBiz(state.mainCategory)) && !payload.subcategory) {
+    if ((state.mainCategory === "stores" || state.mainCategory === "accommodation" || state.mainCategory === "housing" || isBiz(state.mainCategory)) && !payload.subcategory) {
       return `Please select a ${SUBCAT_LABELS[state.mainCategory].toLowerCase()}.`;
     }
     return null;
@@ -2971,14 +3006,10 @@
     $("p_phone").value = item.phone || "";
     $("p_website").value = item.website || "";
 
-    if (item.main_category === "books" || item.main_category === "stores" || item.main_category === "accommodation" || item.main_category === "housing" || isBiz(item.main_category)) {
+    if (item.main_category === "stores" || item.main_category === "accommodation" || item.main_category === "housing" || isBiz(item.main_category)) {
       $("p_subcategory").value = item.subcategory || "";
     }
-    if (item.main_category === "books") {
-      $("p_author").value = item.author || "";
-      $("p_publisher").value = item.publisher || "";
-      $("p_isbn").value = item.isbn || "";
-    } else if (item.main_category === "stores" || isBiz(item.main_category)) {
+    if (item.main_category === "stores" || isBiz(item.main_category)) {
       $("p_store_tagline").value = item.store_tagline || "";
       $("p_opening_hours").value = item.opening_hours || "";
       $("p_delivery").value = item.delivery || "";
@@ -3093,7 +3124,7 @@
     if (desc.length < 40) out.push({ t: desc ? "Description is too short" : "No description", d: `Write at least 40 characters (now ${desc.length}). Say what makes it worth buying.` });
     const photos = (x.images || []).length;
     if (photos === 0) out.push({ t: "No photos", d: "Add clear photos so buyers can see what they’re getting." });
-    else if (photos < 3 && x.main_category !== "books") out.push({ t: `Only ${photos} photo${photos === 1 ? "" : "s"}`, d: "Add at least 3 photos: front, side and inside." });
+    else if (photos < 3) out.push({ t: `Only ${photos} photo${photos === 1 ? "" : "s"}`, d: "Add at least 3 photos: front, side and inside." });
     if (x.main_category === "vehicles" && x.make && title && !title.toLowerCase().includes(String(x.make).toLowerCase())) out.push({ t: "Title and details don’t match", d: `The make is ${x.make} but the title doesn’t mention it.` });
     if (x.main_category === "housing" && hasVal(x.bedrooms)) {
       const m = title.match(/(\d+)\s*(?:-|\s)?\s*(?:bed|br)/i);

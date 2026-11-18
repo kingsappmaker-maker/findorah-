@@ -543,7 +543,7 @@ input:focus, select:focus, textarea:focus {
     gap: 18px;
 }
 
-/* ── Hero row cards (books genres & store categories) ── */
+/* ── Hero row cards (store categories) ── */
 .hero-row-card {
     display: flex;
     align-items: center;
@@ -637,7 +637,6 @@ input:focus, select:focus, textarea:focus {
 .card-grid > *:not(.skeleton) p { color: var(--text-muted); font-size: 12.5px; font-weight: 500; }
 
 /* the gradient shimmer that sweeps category/listing cards on hover */
-#booksGrid > *:not(.skeleton)::after,
 #storesGrid > *:not(.skeleton)::after,
 #vehiclesGrid > *:not(.skeleton)::after,
 #accommodationGrid > *:not(.skeleton)::after,
@@ -651,7 +650,6 @@ input:focus, select:focus, textarea:focus {
     transition: transform 0.55s ease;
     pointer-events: none;
 }
-#booksGrid > *:not(.skeleton):hover::after,
 #storesGrid > *:not(.skeleton):hover::after,
 #vehiclesGrid > *:not(.skeleton):hover::after,
 #accommodationGrid > *:not(.skeleton):hover::after,
@@ -1235,8 +1233,6 @@ input:focus, select:focus, textarea:focus {
 }
 .lc-img-wrap img { width: 100%; height: 100%; object-fit: cover; }
 .card-grid > .listing-card:not(.skeleton) { padding: 0; }
-.listing-card.book-card .lc-img-wrap { aspect-ratio: 4 / 3; background: #f1effa; }
-.listing-card.book-card .lc-img-wrap img { object-fit: contain; }  /* photo runs edge to edge */
 .listing-card.store-card .lc-img-wrap { aspect-ratio: 4 / 3; background: var(--indigo); }
 .listing-card.store-card .lc-img-wrap img { object-fit: cover; padding: 0; }
 .listing-card.store-card .lc-title { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; margin-bottom: 6px; }
@@ -1337,37 +1333,6 @@ input:focus, select:focus, textarea:focus {
 }
 .lc-count { color: var(--violet); font-weight: 700; }
 
-/* ── Books: bookshop-style grid (cover, title, price, genre, order button) ── */
-.card-grid > .book-item:not(.skeleton) {
-    padding: 0; background: transparent; border: 0; border-radius: 0; box-shadow: none;
-    overflow: visible; display: flex; flex-direction: column;
-}
-.card-grid > .book-item:not(.skeleton):hover { transform: none; box-shadow: none; border: 0; }
-.card-grid > .book-item::after { display: none !important; }
-.bk-cover img { width: 100%; height: auto; display: block; border-radius: 3px; box-shadow: 0 8px 22px rgba(20, 16, 50, 0.16); }
-.bk-nocover {
-    aspect-ratio: 2 / 3; border-radius: 3px; background: var(--indigo); color: rgba(255,255,255,0.35);
-    display: flex; align-items: center; justify-content: center; font-size: 34px;
-}
-.bk-title { font-size: 17px; font-weight: 800; line-height: 1.3; letter-spacing: -0.01em; color: var(--void); margin: 16px 0 4px; }
-.bk-author { font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; }
-.bk-price { font-size: 17px; font-weight: 800; color: var(--text); margin: 6px 0 8px; }
-.bk-tags { font-size: 12.5px; font-weight: 800; letter-spacing: 0.03em; text-transform: uppercase; color: var(--violet); margin-bottom: 14px; }
-.bk-order {
-    margin-top: auto; display: flex; align-items: center; justify-content: center; gap: 8px;
-    background: var(--void); color: #fff; font-weight: 700; font-size: 14px; line-height: 1.3;
-    padding: 13px 8px; text-align: center; border-radius: 6px; text-decoration: none;
-}
-.bk-order i { color: #4ade80; }
-.bk-order.bk-view { background: transparent; color: var(--violet); border: 1.5px solid var(--border); }
-
-/* book page: big cover */
-.gallery-grid.book-gallery { display: block; border-radius: 0; overflow: visible; text-align: center; }
-.gallery-grid.book-gallery img {
-    width: 100%; max-width: 440px; height: auto; aspect-ratio: auto; object-fit: contain;
-    display: block; margin: 0 auto 12px; border-radius: 4px; box-shadow: 0 12px 34px rgba(20, 16, 50, 0.2);
-}
-
 /* price + action bar on the detail page */
 #detailPriceLine { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; color: var(--violet); }
 #detailPriceNote { font-size: 14px; color: var(--text-muted); margin-left: 8px; font-weight: 600; }
@@ -1426,8 +1391,6 @@ body.on-detail #siteFooter, body.on-dash #siteFooter { display: none; }
     border-radius: 14px; overflow: hidden; background: var(--d-surface);
 }
 .dt-track img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.dt-gal.book .dt-track button { background: #f1effa; }
-.dt-gal.book .dt-track img { object-fit: contain; }
 .dt-nophoto { display: flex; align-items: center; justify-content: center; color: var(--d-muted); font-size: 14px; }
 .dt-count { position: absolute; left: 12px; bottom: 12px; background: rgba(0,0,0,.72); color: #fff; font-size: 13px; font-weight: 600; padding: 5px 10px; border-radius: 999px; pointer-events: none; }
 .dt-all { position: absolute; right: 12px; bottom: 12px; background: #fff; color: #16161a; border: 0; font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 999px; box-shadow: 0 1px 6px rgba(0,0,0,.18); }
@@ -1513,15 +1476,12 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .lc-price { color: var(--text); font-weight: 800; font-size: 18px; }
 .lc-location { color: var(--text-muted); }
 .lc-meta { color: var(--text-muted); }
-.lc-count, .bk-tags { color: var(--text); }
+.lc-count { color: var(--text); }
 .pc-price, .product-sheet-price { color: var(--text); }
 .product-card:hover { box-shadow: none; transform: none; border-color: #9a9aa8; }
 .amenity-chip { background: #f3f3f6; color: var(--text); border-color: var(--border); }
 .amenity-chip i { color: var(--text); }
-.listing-card.book-card .lc-img-wrap { background: #f3f3f6; }
-.dt-gal.book .dt-track button { background: #f3f3f6; }
 
-.listing-card.store-card.book-card .lc-img-wrap img { object-fit: contain; }
 .lc-price { white-space: nowrap; }
 
 /* pills: purple only when active */
@@ -1585,7 +1545,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .post-page .prod-row { width: 100%; }
 
 /* ------------------------------------------------------------
-   LISTING CARDS for books, vehicles, accommodation, housing:
+   LISTING CARDS for vehicles, accommodation, housing:
    price → name → place → quick facts → Call / WhatsApp
    ------------------------------------------------------------ */
 .lc-badge { background: rgba(255, 255, 255, 0.96) !important; color: #0a0a0f !important; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2); backdrop-filter: none !important; }
@@ -1771,6 +1731,13 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
     padding: 4px 8px; border-radius: 999px; pointer-events: none;
 }
 .ct-more { display: block; width: 100%; margin: 20px 0; padding: 13px; border-radius: 999px; border: 1.5px solid var(--text); background: none; font-weight: 600; color: var(--text); }
+/* store products: same size as before, new look: square corners, name left and price right on one row */
+.ct-shop .ct-card .im { border-radius: 0; }
+.ct-shop .ct-badge { background: rgba(10, 10, 15, 0.5); }
+.ct-shop .ct-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-top: 8px; }
+.ct-shop .ct-row .n { flex: 1; min-width: 0; margin-top: 0; font-size: 14px; font-weight: 400; }
+.ct-shop .ct-row .ct-p { flex: none; margin-top: 0; padding-top: 0; min-height: 0; font-size: 14px; font-weight: 400; line-height: 1.3; color: var(--d-muted); white-space: nowrap; }
+.ct-shop .ct-row .ct-p.none { font-size: 12.5px; }
 
 .pm-scrim { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.55); z-index: 3700; display: none; align-items: flex-end; justify-content: center; }
 .pm-scrim.open { display: flex; }
@@ -1807,7 +1774,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .pm-rel img { width: 100%; height: 100%; object-fit: cover; }
 
 /* ------------------------------------------------------------
-   POLISH: lighter outlines, no header glow, no footer bar, book grid
+   POLISH: lighter outlines, no header glow, no footer bar
    ------------------------------------------------------------ */
 body { padding-bottom: 12px; }
 /* no glow behind the logo, the + button or the account button */
@@ -1820,15 +1787,6 @@ body { padding-bottom: 12px; }
 .card-grid > *:not(.skeleton) { border: 1px solid #e3e3e8; }
 .rc-btn { border: 1.5px solid #0a0a0f; }
 .rc-btn.rc-wa { border-color: #1faa59; }
-
-.card-grid > .book-tile:not(.skeleton) {
-    padding: 0; background: transparent; border: 0; border-radius: 0; box-shadow: none; overflow: visible; cursor: pointer;
-}
-.book-tile .bt-img { aspect-ratio: 2 / 3; border-radius: 12px; overflow: hidden; background: #f1f1f4; border: 1px solid #ececf0; }
-.book-tile .bt-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.bt-price { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; margin: 9px 0 1px; color: #0a0a0f; }
-.bt-title { font-size: 15px; font-weight: 600; line-height: 1.3; color: #0a0a0f; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.bt-author { font-size: 13px; color: var(--text-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ------------------------------------------------------------
    LIGHT HEADER, one bar on detail pages, gray call buttons, photo dots
@@ -2255,6 +2213,143 @@ body.has-tabbar #view-home, body.has-tabbar #view-search { padding-bottom: calc(
 @media (prefers-reduced-motion: reduce) { .category-panel.active-panel { animation: none; } .tab-btn, .tab-btn i { transition: none; } }
 
 .rv-del { background: none; border: 0; padding: 8px 0; color: #b42318; font-weight: 600; font-size: 14.5px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+/* ------------------------------------------------------------
+   GLASS PILL HEADER: floats over the page, frosted, content scrolls underneath
+   ------------------------------------------------------------ */
+:root { --header-h: calc(78px + env(safe-area-inset-top, 0px)); }
+@media (display-mode: window-controls-overlay) {
+    :root { --header-h: max(78px, calc(env(titlebar-area-height, 0px) + 14px)); }
+}
+#siteHeader {
+    top: calc(10px + env(safe-area-inset-top, 0px));
+    left: 12px; right: 12px;
+    max-width: 1080px; margin: 0 auto;
+    height: 58px;
+    padding: 0 7px 0 10px;
+    gap: 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.58);
+    -webkit-backdrop-filter: blur(18px) saturate(180%);
+    backdrop-filter: blur(18px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.75);
+    box-shadow: 0 0 0 1px rgba(10, 10, 15, 0.06), 0 10px 32px rgba(109, 40, 217, 0.14);
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    #siteHeader { background: rgba(255, 255, 255, 0.94); }
+}
+#menuBtn { display: grid; place-items: center; width: 40px; height: 40px; color: #14111f; border-radius: 50%; flex: 0 0 auto; }
+#menuBtn:hover { background: rgba(20, 17, 31, 0.06); }
+.branding { gap: 10px; min-width: 0; }
+.brand-icon { width: 38px; height: 38px; border-radius: 12px; font-size: 16px; flex: 0 0 auto; }
+.branding h1 { font-size: 23px; font-weight: 800; letter-spacing: -0.035em; line-height: 1; }
+.header-actions { gap: 8px; flex: 0 0 auto; }
+.header-post-btn, .header-auth-btn {
+    display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border-radius: 50%; border: 0;
+}
+.header-post-btn { background: #14111f; color: #fff; font-size: 18px; }
+.header-post-btn:hover { background: #14111f; opacity: .92; }
+.header-post-btn span { display: none; }
+.header-auth-btn { background: #efe9fe; color: var(--violet); font-size: 17px; border: 0; }
+.header-auth-btn:hover { background: #e5dbfd; }
+@media (min-width: 720px) {
+    .header-post-btn { width: auto; display: inline-flex; align-items: center; gap: 8px; padding: 0 20px; border-radius: 999px; font-size: 14px; }
+    .header-post-btn span { display: inline; }
+    .header-post-btn i { font-size: 15px; }
+}
+
+/* ------------------------------------------------------------
+   CARD PHOTOS: fixed 4:3, soft overlay, quieter pills and hearts
+   ------------------------------------------------------------ */
+.rich-card .lc-img-wrap,
+.listing-card.store-card.biz-card .lc-img-wrap { aspect-ratio: 4 / 3; }
+.card-grid:not(.compact) .lc-img-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* gentle top + bottom shade so bright and dark photos sit at the same level */
+.lc-img-wrap::after {
+    content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none; border-radius: inherit;
+    background: linear-gradient(180deg, rgba(10, 10, 15, 0.16) 0%, rgba(10, 10, 15, 0.04) 38%, rgba(10, 10, 15, 0.04) 62%, rgba(10, 10, 15, 0.16) 100%);
+}
+.listing-card.store-card.biz-card .lc-img-wrap::after { border-radius: var(--r-md) var(--r-md) 0 0; }
+.lc-badge, .lc-photocount, .biz-card .bc-logo { z-index: 2; }
+.lc-badge {
+    top: 8px; left: 8px;
+    background: rgba(255, 255, 255, 0.62) !important;
+    -webkit-backdrop-filter: blur(8px) saturate(160%) !important;
+    backdrop-filter: blur(8px) saturate(160%) !important;
+    color: #0a0a0f !important;
+    font-size: 10.5px; padding: 3px 8px;
+    box-shadow: none;
+}
+.lc-badge.lc-open { gap: 5px; }
+.lc-badge.lc-open::before { width: 6px; height: 6px; }
+.lc-photocount { left: 8px; bottom: 8px; font-size: 11px; padding: 2px 8px; background: rgba(10, 10, 15, 0.5); text-shadow: none; }
+.card-hrt {
+    top: 8px; right: 8px; width: 30px; height: 30px; z-index: 3;
+    background: rgba(255, 255, 255, 0.55);
+    -webkit-backdrop-filter: blur(8px) saturate(160%);
+    backdrop-filter: blur(8px) saturate(160%);
+    box-shadow: none;
+}
+.card-hrt svg { width: 15px; height: 15px; }
+.card-hrt.on { background: rgba(255, 255, 255, 0.72); }
+.card-grid.compact .card-hrt { width: 28px; height: 28px; top: 6px; right: 6px; }
+.card-grid.compact .card-hrt svg { width: 14px; height: 14px; }
+
+/* ============================================================
+   STORE + RESTAURANT LIST CARDS  (compact list, matches findorah-store-list mock-up)
+   ============================================================ */
+#storesGrid, [id^="biz-grid-"] { grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 12px; }
+.card-grid > .sc-card:not(.skeleton) {
+    padding: 14px 0; border: 1px solid #e6e2f3; border-radius: 18px; background: #fff;
+    box-shadow: 0 2px 10px rgba(109, 40, 217, .05); cursor: default; overflow: hidden;
+}
+.card-grid > .sc-card:not(.skeleton):hover { transform: none; border-color: rgba(124, 58, 237, .35); box-shadow: 0 2px 10px rgba(109, 40, 217, .05); }
+.card-grid > .sc-card:not(.skeleton)::after { display: none !important; }
+.sc-card.is-closed .sc-head > .sc-logo, .sc-card.is-closed .sc-info, .sc-card.is-closed .sc-strip { opacity: .7; }
+.sc-head { display: flex; align-items: center; gap: 12px; padding: 0 14px 12px; cursor: pointer; }
+.sc-card:not(:has(.sc-strip)) .sc-head { padding-bottom: 0; }
+.sc-logo {
+    flex: 0 0 48px; width: 48px; height: 48px; border-radius: 50%; overflow: hidden;
+    border: 1px solid #e6e2f3; background: #f5f3ff; color: #6d28d9;
+    display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700;
+}
+.sc-logo img { width: 100%; height: 100%; object-fit: cover; }
+.sc-info { flex: 1; min-width: 0; }
+.sc-name { display: flex; align-items: center; gap: 5px; font-size: 16px; font-weight: 700; color: #0f0b1e; line-height: 1.3; }
+.sc-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sc-verified { color: #7c3aed; font-size: 14px; flex: none; }
+.sc-status, .sc-meta { font-size: 13px; color: #6b6880; line-height: 1.4; }
+.sc-meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sc-status b { font-weight: 600; }
+.sc-open { color: #15803d; }
+.sc-closed { color: #b45309; }
+.sc-head .card-hrt {
+    position: static; flex: none; width: 36px; height: 36px; border-radius: 50%; border: 0;
+    background: #f1f1f4; color: #8a8a99; display: grid; place-items: center;
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+.sc-head .card-hrt svg { width: 18px; height: 18px; }
+.sc-head .card-hrt.on { background: #f1f1f4; color: #e11d48; }
+.sc-strip-head { display: flex; justify-content: space-between; align-items: center; padding: 0 14px 8px; }
+.sc-strip-head span { font-size: 14px; font-weight: 700; color: #0f0b1e; }
+.sc-strip-head a { font-size: 13px; font-weight: 600; color: #0a0a0f; display: flex; align-items: center; gap: 4px; }
+.sc-strip-head a i { font-size: 10px; }
+.sc-strip { display: flex; gap: 10px; overflow-x: auto; padding: 0 14px 2px; width: 100%; max-width: 100%; scrollbar-width: none; -webkit-overflow-scrolling: touch; cursor: grab; }
+.sc-strip.dragging { cursor: grabbing; user-select: none; }
+.sc-strip::-webkit-scrollbar { display: none; }
+.sc-item { flex: 0 0 132px; cursor: pointer; }
+.sc-thumb { width: 132px; height: 132px; border-radius: 0; background: #f1f1f4; border: 1px solid #e3e3e8; overflow: hidden; }
+.sc-thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 0; -webkit-user-drag: none; user-select: none; pointer-events: none; }
+.sc-iname { margin-top: 8px; font-size: 13px; font-weight: 500; line-height: 1.3; color: #0a0a0f; height: 34px; overflow: hidden; }
+.sc-iprice { margin-top: 2px; font-size: 14px; font-weight: 800; color: #0a0a0f; }
+/* store card: swipeable gallery in place of the single storefront photo */
+.bc-gallery { display: flex; width: 100%; height: 100%; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain; border-radius: var(--r-md) var(--r-md) 0 0; background: #f0f0f2; }
+.bc-gallery::-webkit-scrollbar { display: none; }
+.bc-gallery img { flex: 0 0 100%; width: 100%; height: 100%; object-fit: cover; display: block; scroll-snap-align: center; -webkit-user-drag: none; }
+.listing-card.store-card.biz-card .lc-title { font-size: 17px; }
+.bc-dots { position: absolute; left: 0; right: 0; bottom: 10px; z-index: 2; display: flex; justify-content: center; gap: 6px; pointer-events: none; }
+.bc-dots i { width: 6px; height: 6px; border-radius: 999px; background: rgba(255, 255, 255, .6); box-shadow: 0 1px 3px rgba(0, 0, 0, .35); transition: width .35s ease, background .35s ease; }
+.bc-dots i.on { width: 20px; background: #fff; }
+@media (prefers-reduced-motion: reduce) { .bc-dots i { transition: none; } }
 </style>
 </head>
 <body>
@@ -2316,7 +2411,7 @@ body.has-tabbar #view-home, body.has-tabbar #view-search { padding-bottom: calc(
      HEADER
      ============================================================ -->
 <header id="siteHeader">
-    <button id="menuBtn" aria-label="Open menu"><i class="fas fa-bars"></i></button>
+    <button id="menuBtn" aria-label="Open menu"><svg width="24" height="14" viewBox="0 0 24 14" fill="none" aria-hidden="true"><path d="M2 3h20M2 11h20" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg></button>
 
     <div class="branding" onclick="window.showHome()" style="cursor:pointer;">
         <span class="brand-icon"><i class="fas fa-gem"></i></span>
@@ -2496,7 +2591,6 @@ body.has-tabbar #view-home, body.has-tabbar #view-search { padding-bottom: calc(
      ============================================================ -->
 
 
-
 <!-- ============================================================
      MODAL: POST / EDIT LISTING
      ============================================================ -->
@@ -2571,14 +2665,8 @@ body.has-tabbar #view-home, body.has-tabbar #view-search { padding-bottom: calc(
 
             <!-- 4. Category-specific details -->
             <div class="pf" id="subCatRow">
-                <label class="pf-label" for="p_subcategory" id="subCatLabel">Genre</label>
+                <label class="pf-label" for="p_subcategory" id="subCatLabel">Type</label>
                 <select id="p_subcategory" onchange="window.handleSubCatChange()"></select>
-            </div>
-
-            <div id="bookFields" class="listing-fields">
-                <div class="pf"><label class="pf-label" for="p_author">Author <i class="req">*</i></label><input type="text" id="p_author" placeholder="e.g. Mutale Banda"></div>
-                <div class="pf"><label class="pf-label" for="p_publisher">Publisher <span class="pf-soft">(optional)</span></label><input type="text" id="p_publisher"></div>
-                <div class="pf"><label class="pf-label" for="p_isbn">ISBN <span class="pf-soft">(optional)</span></label><input type="text" id="p_isbn"></div>
             </div>
 
             <div id="storeFields" class="listing-fields" style="display:none;">
@@ -2766,7 +2854,6 @@ body.has-tabbar #view-home, body.has-tabbar #view-search { padding-bottom: calc(
 <!-- ============================================================
      FOOTER (fixed bottom)
      ============================================================ -->
-
 
 
 <!-- ============================================================
