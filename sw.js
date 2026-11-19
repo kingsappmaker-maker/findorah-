@@ -62,7 +62,7 @@ async function handleShare(req) {
     const cache = await caches.open(SHARE_CACHE);
     await Promise.all((await cache.keys()).map((k) => cache.delete(k)));
 
-    const files = form.getAll("photos").filter((f) => f && f.name).slice(0, 7);
+    const files = form.getAll("photos").filter((f) => f && f.name).slice(0, 10);
     let i = 0;
     for (const f of files) {
       await cache.put(

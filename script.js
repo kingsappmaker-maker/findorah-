@@ -1463,6 +1463,9 @@
   /* ----------------------------------------------------------
      SIMILAR LISTINGS (restaurants, stores, accommodation)
      ---------------------------------------------------------- */
+  // stores: "Similar stores" only lists stores selling the same kind of thing (e.g. Electronics)
+  const normType = (v) => String(v || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const sameType = (a, b) => !!normType(a.subcategory) && normType(a.subcategory) === normType(b.subcategory);
   function similarHtml(item) {
     const c = item.main_category;
     if (!SIMILAR_CATS.includes(c)) return "";
@@ -1470,7 +1473,8 @@
     const p0 = priceNum(item);
     const pool = state.listings.filter((l) =>
       l.status === "published" && String(l.id) !== String(item.id) && l.main_category === c &&
-      (c !== "accommodation" || !type || l.subcategory === item.subcategory));
+      (c !== "accommodation" || !type || l.subcategory === item.subcategory) &&
+      (c !== "stores" || sameType(l, item)));
     if (!pool.length) return "";
     const scored = pool.map((l) => {
       let sc = 0;
@@ -2468,12 +2472,12 @@
 
   // Stores and menus: the top photo block only holds the cover + the round logo (2 photos).
   // Products live in their own cards below, each with up to PHOTOS_PER_PRODUCT photos.
-  // Every other category allows 7 photos.
-  const PHOTOS_PER_PRODUCT = 2;   // change this one number to allow more photos per product
+  // Every other category allows 10 photos.
+  const PHOTOS_PER_PRODUCT = 3;   // change this one number to allow more photos per product
   const MAX_PRODUCTS = 30;
   const productLimit = () => (isBiz(state.mainCategory) ? BIZ[state.mainCategory].limit : MAX_PRODUCTS);
   function photoLimit() {
-    return usesProducts(state.mainCategory) ? 2 : 7;
+    return usesProducts(state.mainCategory) ? 2 : 10;
   }
 
   function paintProgress(label, done, total) {

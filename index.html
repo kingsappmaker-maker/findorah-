@@ -2618,14 +2618,14 @@ body.has-tabbar #view-home, body.has-tabbar #view-search { padding-bottom: calc(
 
             <!-- 1. Photos -->
             <div class="pf">
-                <label class="pf-label">Photos <span id="photoLimitLabel" class="pf-soft">(up to 7)</span></label>
+                <label class="pf-label">Photos <span id="photoLimitLabel" class="pf-soft">(up to 10)</span></label>
                 <label id="photoDropZone" class="pf-drop"
                     ondragover="event.preventDefault();this.style.borderColor='var(--violet)';"
                     ondragleave="this.style.borderColor='';"
                     ondrop="window.handlePhotoDrop(event)">
                     <i class="fas fa-camera"></i>
                     <b>Tap to add photos</b>
-                    <span>JPG, PNG or WebP · <span id="photoHint">Up to 7 photos</span></span>
+                    <span>JPG, PNG or WebP · <span id="photoHint">Up to 10 photos</span></span>
                     <input type="file" id="listingImages" accept="image/png,image/jpeg,image/webp,image/*" multiple
                         style="position:absolute;inset:0;opacity:0;cursor:pointer;font-size:0;"
                         onchange="window.handlePhotoSelect(this.files)">
@@ -2861,15 +2861,66 @@ body.has-tabbar #view-home, body.has-tabbar #view-search { padding-bottom: calc(
      ============================================================ -->
 <script src="script.js"></script>
 
-<!-- PWA Service Worker -->
+<!-- PWA Service Worker + auto-update -->
 <script>
     if ('serviceWorker' in navigator) {
+        const hadController = !!navigator.serviceWorker.controller;
+        let reloading = false;
+        // a new service worker took over: load its files once
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (!hadController || reloading) return;
+            reloading = true; location.reload();
+        });
         window.addEventListener('load', () => {
             navigator.serviceWorker.register('/sw.js')
-                .then(reg => console.log('Findorah SW registered:', reg.scope))
+                .then(reg => {
+                    console.log('Findorah SW registered:', reg.scope);
+                    window.__swReg = reg;
+                })
                 .catch(err => console.warn('SW registration failed:', err));
         });
     }
+
+    // Auto-update: when the app is opened, comes back to the foreground, or every few minutes,
+    // check whether the site files changed on the server (cheap HEAD request) and reload if so.
+    (function () {
+        const FILES = ['/index.html', '/script.js'];
+        const EVERY = 5 * 60 * 1000;
+        let base = null, busy = false, lastTyped = 0, reloading = false;
+        const sig = async () => {
+            try {
+                const parts = await Promise.all(FILES.map(async (u) => {
+                    const r = await fetch(u, { method: 'HEAD', cache: 'no-store' });
+                    if (!r.ok) return null;
+                    return r.headers.get('etag') || r.headers.get('last-modified') || r.headers.get('content-length');
+                }));
+                return parts.every(Boolean) ? parts.join('|') : null;
+            } catch (e) { return null; } // offline or flaky: try again later
+        };
+        // don't reload while someone is typing (e.g. filling in a listing)
+        document.addEventListener('input', () => { lastTyped = Date.now(); }, true);
+        const check = async () => {
+            if (busy || reloading || document.hidden || !navigator.onLine) return;
+            busy = true;
+            try {
+                if (window.__swReg) window.__swReg.update().catch(() => {});
+                const s = await sig();
+                if (!s) return;
+                if (base === null) { base = s; return; }
+                if (s !== base) {
+                    const a = document.activeElement;
+                    const typing = a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && Date.now() - lastTyped < 120000;
+                    if (typing) return; // try again at the next check
+                    reloading = true;
+                    location.reload();
+                }
+            } finally { busy = false; }
+        };
+        window.addEventListener('load', () => setTimeout(check, 1500));
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+        window.addEventListener('online', check);
+        setInterval(check, EVERY);
+    })();
 </script>
 
 <!-- Photo gallery (full-screen page over the listing) -->
