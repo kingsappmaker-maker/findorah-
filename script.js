@@ -1920,7 +1920,7 @@
     }).join("");
     // contact
     const phone = (item.phone || "").replace(/[^\d+]/g, "");
-    const url = location.origin + "/?protocol=" + encodeURIComponent("web+findorah:listing/" + item.id);
+    const url = productShareUrl(item, it);
     const msg = `Hi, I'm interested in ${it.name || "an item"}${pr ? " (" + pr + ")" : ""} on Findorah: ${url}`;
     $("pdWa").href = phone ? `https://wa.me/${waNumber(phone)}?text=${encodeURIComponent(msg)}` : "#";
     $("pdWa").textContent = isRest ? "Order on WhatsApp" : "Ask on WhatsApp";
@@ -1959,7 +1959,7 @@
       const data = {
         title: `${it.name || "Item"} – ${item.title}`,
         text: `Check out ${it.name || "this item"} at ${item.title} on Findorah`,
-        url: location.origin + "/?protocol=" + encodeURIComponent("web+findorah:listing/" + item.id)
+        url: productShareUrl(item, it)
       };
       if (navigator.share) navigator.share(data).catch(() => {});
       else if (navigator.clipboard) { navigator.clipboard.writeText(data.url); toast("Link copied to clipboard"); }
@@ -2003,13 +2003,27 @@
     requestAnimationFrame(() => window.scrollTo(0, y));
   }
 
+  // Share links point at the static /l/ page (so WhatsApp shows the listing's own photo);
+  // ?s=1 makes that page send people straight into the app.
+  const shareUrl = (id) => location.origin + "/l/" + id + ".html?s=1";
+  // Short stable id for a product = hash of its first photo URL (must match scripts/generate-sitemap.mjs)
+  function prodKey(s) {
+    let h = 0x811c9dc5; s = String(s);
+    for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+    return (h >>> 0).toString(16).padStart(8, "0");
+  }
+  // restaurants have no per-item pages: a menu item shares the restaurant's link
+  const productShareUrl = (item, it) => item.main_category === "restaurants"
+    ? shareUrl(item.id)
+    : location.origin + "/l/" + item.id + "/" + prodKey(it.image) + ".html?s=1";
+
   function shareListing() {
     const item = state.detail.item;
     if (!item) return;
     const shareData = {
       title: item.title,
       text: `Check out "${item.title}" on Findorah`,
-      url: location.origin + "/?protocol=" + encodeURIComponent("web+findorah:listing/" + item.id)
+      url: shareUrl(item.id)
     };
     if (navigator.share) {
       navigator.share(shareData).catch(() => {});
@@ -3945,7 +3959,15 @@
       history.replaceState(null, "", location.pathname);
       if (lid) {
         const hit = state.listings.find((l) => String(l.id).toLowerCase() === lid.toLowerCase());
-        hit ? openDetail(hit.id) : toast("That listing is no longer available.", true);
+        if (!hit) toast("That listing is no longer available.", true);
+        else {
+          openDetail(hit.id);
+          const key = params.get("product");
+          if (key) {
+            const i = catalogItems(hit).findIndex((p) => prodKey(p.image) === key);
+            if (i > -1) openProduct(i);
+          }
+        }
       } else openSearchResults(term.slice(0, 80));
       return;
     }
