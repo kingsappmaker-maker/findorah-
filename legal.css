@@ -1,0 +1,18 @@
+:root { --text:#0a0a0f; --muted:#3d3d49; --line:#d2d2da; --violet:#7c3aed; --bg:#fff; }
+@media (prefers-color-scheme: dark) { :root { --text:#f4f3fb; --muted:#b9b7c8; --line:#34323f; --bg:#0d0d0d; --violet:#a78bfa; } }
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin:0; background:var(--bg); color:var(--text); font:16px/1.65 "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif; }
+header.lg { display:flex; align-items:center; gap:12px; padding:calc(12px + env(safe-area-inset-top,0px)) 16px 12px; border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--bg); }
+header.lg a.back { color:var(--text); text-decoration:none; font-size:22px; line-height:1; padding:4px 8px 4px 0; }
+header.lg b { font-size:18px; font-weight:800; }
+main { max-width:720px; margin:0 auto; padding:22px 18px 80px; }
+h1 { font-size:28px; line-height:1.2; margin:0 0 6px; letter-spacing:-.02em; }
+h2 { font-size:19px; margin:30px 0 6px; }
+p, li { color:var(--text); }
+.meta { color:var(--muted); font-size:14px; margin:0 0 18px; }
+ul { padding-left:20px; }
+li { margin:4px 0; }
+a { color:var(--violet); }
+.note { border-top:1px solid var(--line); margin-top:36px; padding-top:14px; color:var(--muted); font-size:14px; }
+nav.lg { display:flex; flex-wrap:wrap; gap:6px 18px; margin-top:28px; font-size:14px; }

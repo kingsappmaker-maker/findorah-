@@ -75,6 +75,15 @@
      ---------------------------------------------------------- */
   const $ = (id) => document.getElementById(id);
 
+  // Shown when a listing has no photo, or a photo fails to load
+  const PLACEHOLDER_IMG = "data:image/svg+xml," + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400"><rect width="400" height="400" fill="#eeeef2"/>' +
+    '<g fill="none" stroke="#a9a9b8" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><rect x="110" y="135" width="180" height="130" rx="16"/><circle cx="160" cy="185" r="14"/><path d="M122 255l55-50 40 36 25-22 38 36"/></g></svg>');
+  document.addEventListener("error", (e) => {
+    const t = e.target;
+    if (t && t.tagName === "IMG" && !t.dataset.fb && t.src !== PLACEHOLDER_IMG) { t.dataset.fb = "1"; t.src = PLACEHOLDER_IMG; }
+  }, true);
+
   function escapeHtml(str) {
     if (str === null || str === undefined) return "";
     return String(str)
@@ -407,7 +416,7 @@
     if (!photos.length && item.images && item.images.length) photos = [item.images[0]];
     const gallery = photos.length
       ? `<div class="bc-gallery">${photos.map((u) => `<img alt="${escapeHtml(item.title)}" loading="lazy" draggable="false" src="${escapeHtml(u)}">`).join("")}</div>`
-      : "";
+      : `<div class="bc-gallery"><img alt="" draggable="false" src="${PLACEHOLDER_IMG}"></div>`;
     const count = photos.length > 1 ? `<div class="bc-dots">${photos.map((_, i) => `<i${i ? "" : ' class="on"'}></i>`).join("")}</div>` : "";
     const place = item.location ? `<i class="fas fa-map-marker-alt bc-pin"></i>${escapeHtml(item.location)}` : "";
     const meta = [item.subcategory ? escapeHtml(item.subcategory) : "", place].filter(Boolean).join(" · ");
@@ -496,7 +505,7 @@
     const img =
       item.images && item.images.length
         ? `<img src="${escapeHtml(item.images[0])}" alt="${escapeHtml(item.title)}" loading="lazy">`
-        : "";
+        : `<img src="${PLACEHOLDER_IMG}" alt="" loading="lazy">`;
     const badge = (isStore || isBizItem || isStay || isHousing) && item.subcategory
       ? `<span class="lc-badge">${escapeHtml(item.subcategory)}</span>`
       : "";
@@ -808,14 +817,13 @@
   function searchIndex(l) {
     let x = SIDX.get(l);
     if (x) return x;
-    const prods = Array.isArray(l.products) ? l.products.map((p) => p && p.name) : [];
     x = {
       title: words(l.title),
       full: norm(l.title).replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim(),
       cat: words([l.subcategory, catLabel(l.main_category)].join(" ")),
       area: words(l.location),
       seller: words(l.seller_name),
-      other: words([l.store_tagline, l.make, l.model].concat(prods).join(" "))
+      other: words([l.store_tagline, l.make, l.model].join(" "))
     };
     SIDX.set(l, x);
     return x;
@@ -876,7 +884,7 @@
     if (vocabCache.key === key && vocabCache.len === key.length) return vocabCache.map;
     const m = new Map();
     const add = (text) => String(text || "").split(/[^A-Za-z0-9\u00C0-\u024F]+/).forEach((w) => { const n = norm(w); if (n.length >= 3 && !m.has(n)) m.set(n, w); });
-    state.listings.forEach((l) => { add(l.title); add(l.location); add(l.subcategory); add(l.seller_name); add(catLabel(l.main_category)); });
+    state.listings.forEach((l) => { (Array.isArray(l.products) ? l.products : []).forEach((p) => add(p && p.name)); add(l.title); add(l.location); add(l.subcategory); add(l.seller_name); add(catLabel(l.main_category)); });
     vocabCache = { key, len: key.length, map: m };
     return m;
   }
@@ -898,7 +906,7 @@
     });
     if (!changed) return null;
     const phrase = out.join(" ");
-    return searchListings(phrase).length ? phrase : null;
+    return searchListings(phrase).length || searchProducts(phrase).length ? phrase : null;
   }
 
   // ---- recent searches ----
@@ -947,6 +955,12 @@
     const toks = words(q);
     const groups = [];
     if (!toks.length) return groups;
+    const pr = searchProducts(q);
+    if (pr.length) {
+      groups.push({ label: "Products", rows: pr.slice(0, 5).map((r) => ({
+        icon: "fa-tag", title: r.p.name, sub: [priceOrNone(r.p.price), r.l.title].filter(Boolean).join(" · "), action: { type: "product", id: r.l.id, i: r.i }
+      })) });
+    }
     const hits = searchListings(q);
     if (hits.length) {
       groups.push({ label: "Listings", rows: hits.slice(0, 5).map((r) => ({
@@ -1018,6 +1032,7 @@
       if (!r) return;
       close();
       if (r.action.type === "listing") { input.blur(); openDetail(r.action.id); }
+      else if (r.action.type === "product") { input.blur(); openProductFromSearch(r.action.id, r.action.i); }
       else openSearchResults(r.action.q);
     }
     function setActive(n) {
@@ -1090,6 +1105,12 @@
       renderResults();
       window.scrollTo({ top: 0 });
     });
+    $("srProducts").addEventListener("click", (e) => {
+      const t = e.target.closest("[data-tab]");
+      if (t) { state.search.tab = t.dataset.tab; renderResults(); window.scrollTo({ top: 0 }); return; }
+      const p = e.target.closest("[data-pr]");
+      if (p) openProductFromSearch(p.dataset.pr, p.dataset.i);
+    });
     $("srGrid").addEventListener("click", (e) => {
       const b = e.target.closest("[data-browse]");
       if (b) { closeSearch(); setMainCategory(b.dataset.browse); return; }
@@ -1115,7 +1136,7 @@
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     showView("view-search");
     renderResults();
-    if (searchListings(q).length) saveRecent(q);
+    if (searchListings(q).length || searchProducts(q).length) saveRecent(q);
   }
   function closeSearch() {
     state.search.q = "";
@@ -1133,11 +1154,48 @@
     $("srCount").textContent = state.search.q ? "Searching…" : "";
     resultsTimer = setTimeout(renderResults, SEARCH_DELAY);
   }
+  function searchProducts(q) {
+    const toks = words(q);
+    if (!toks.length) return [];
+    const phrase = toks.join(" ");
+    const out = [];
+    state.listings.forEach((l) => {
+      if (l.status !== "published" || !usesProducts(l.main_category)) return;
+      catalogItems(l).forEach((p, i) => {
+        if (p.sold || !hasVal(p.name)) return;
+        const nameWs = words(p.name), allWs = words(p.name + " " + (p.details || ""));
+        let total = 0, ok = true;
+        for (const t of toks) {
+          const a = tokScore(t, nameWs), b = tokScore(t, allWs);
+          const s = a ? a * 10 : b ? b * 4 : 0;
+          if (!s) { ok = false; break; }
+          total += s;
+        }
+        if (!ok) return;
+        if (norm(p.name).replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").indexOf(phrase) > -1) total += 6;
+        out.push({ l, p, i, score: total });
+      });
+    });
+    return out.sort((a, b) => b.score - a.score || String(a.p.name).localeCompare(String(b.p.name)));
+  }
+  function productRowsHtml(rows, toks) {
+    return `<ul class="pr-list">${rows.map((r) => {
+      const pr = priceOrNone(r.p.price);
+      const sub = [r.l.title, r.l.location].filter(Boolean).join(" · ");
+      return `<li><button type="button" class="pr-row" data-pr="${escapeHtml(String(r.l.id))}" data-i="${r.i}"><span class="pr-main"><span class="pr-name">${highlight(r.p.name, toks)}</span><span class="pr-store">${escapeHtml(sub)}</span></span><span class="pr-price${pr ? "" : " none"}">${pr ? escapeHtml(pr) : "On request"}</span></button></li>`;
+    }).join("")}</ul>`;
+  }
+  // tapping a product result opens the store straight on that product
+  function openProductFromSearch(id, i) {
+    openDetail(id);
+    openProduct(+i);
+  }
   function renderResults() {
     const S = state.search;
     const q = S.q;
-    const grid = $("srGrid"), count = $("srCount"), tabs = $("srTabs"), sortWrap = $("srSortWrap");
+    const grid = $("srGrid"), prodBox = $("srProducts"), count = $("srCount"), tabs = $("srTabs"), sortWrap = $("srSortWrap");
     clearTimeout(missTimer);
+    prodBox.innerHTML = "";
     if (!state.listingsLoaded) {
       count.textContent = "Searching…";
       tabs.innerHTML = "";
@@ -1148,16 +1206,18 @@
       count.textContent = "";
       tabs.innerHTML = "";
       sortWrap.hidden = true;
-      grid.innerHTML = emptyStateHtml("Search Findorah", "Type a store, hotel, car or area.", categoryChipsHtml());
+      grid.innerHTML = emptyStateHtml("Search Findorah", "Type a product, store, hotel, car or area.", categoryChipsHtml());
       return;
     }
     const all = searchListings(q);
+    const prods = searchProducts(q);
+    const toks = words(q);
     const perCat = new Map();
     all.forEach((r) => perCat.set(r.l.main_category, (perCat.get(r.l.main_category) || 0) + 1));
-    if (S.tab !== "all" && !perCat.has(S.tab)) S.tab = "all";
-    sortWrap.hidden = !all.length;
+    if (S.tab === "products" ? !prods.length : S.tab !== "all" && !perCat.has(S.tab)) S.tab = "all";
+    sortWrap.hidden = !(all.length || prods.length);
 
-    if (!all.length) {
+    if (!all.length && !prods.length) {
       count.textContent = "";
       tabs.innerHTML = "";
       const dym = didYouMean(q);
@@ -1173,13 +1233,27 @@
       return;
     }
 
-    count.textContent = `${all.length} result${all.length === 1 ? "" : "s"} for “${q}”`;
+    const total = all.length + prods.length;
+    count.textContent = `${total} result${total === 1 ? "" : "s"} for “${q}”`;
     const catsWith = ALL_CATS.filter((c) => perCat.has(c));
-    tabs.innerHTML = catsWith.length > 1
-      ? [["all", "All", all.length]].concat(catsWith.map((c) => [c, catLabel(c), perCat.get(c)]))
-          .map(([k, label, n]) => `<button type="button" role="tab" class="sr-tab${S.tab === k ? " on" : ""}" data-tab="${k}" aria-selected="${S.tab === k}">${escapeHtml(label)} <em>${n}</em></button>`).join("")
+    const tabDefs = [["all", "All", total]];
+    if (prods.length) tabDefs.push(["products", "Products", prods.length]);
+    catsWith.forEach((c) => tabDefs.push([c, catLabel(c), perCat.get(c)]));
+    tabs.innerHTML = tabDefs.length > 2
+      ? tabDefs.map(([k, label, n]) => `<button type="button" role="tab" class="sr-tab${S.tab === k ? " on" : ""}" data-tab="${k}" aria-selected="${S.tab === k}">${escapeHtml(label)} <em>${n}</em></button>`).join("")
       : "";
-    let rows = S.tab === "all" ? all : all.filter((r) => r.l.main_category === S.tab);
+
+    // products: a compact list (name + price), never a store card
+    let pRows = prods;
+    if (S.sort === "newest") pRows = prods.slice().sort((a, b) => new Date(b.l.created_at) - new Date(a.l.created_at));
+    if (S.tab === "all" || S.tab === "products") {
+      const cap = S.tab === "all" ? 8 : pRows.length;
+      let html = pRows.length ? `<h2 class="pr-h">Products</h2>${productRowsHtml(pRows.slice(0, cap), toks)}` : "";
+      if (pRows.length > cap) html += `<button type="button" class="pr-more" data-tab="products">See all ${pRows.length} products</button>`;
+      if (html && S.tab === "all" && all.length) html += `<h2 class="pr-h">Stores and listings</h2>`;
+      prodBox.innerHTML = html;
+    }
+    let rows = S.tab === "all" ? all : S.tab === "products" ? [] : all.filter((r) => r.l.main_category === S.tab);
     if (S.sort === "newest") rows = rows.slice().sort((a, b) => new Date(b.l.created_at) - new Date(a.l.created_at));
     grid.innerHTML = rows.map((r) => listingCardHtml(r.l)).join("");
   }
@@ -1718,6 +1792,10 @@
   // ---- store / restaurant catalog page ----
   const CT = { shown: 6, items: [], item: null };
   function catalogItems(item) {
+    const b = catalogBase(item);
+    return b.filter((p) => !p.sold).concat(b.filter((p) => p.sold));
+  }
+  function catalogBase(item) {
     const imgs = item.images || [];
     let prods = Array.isArray(item.products) && item.products.length ? item.products : imgs.slice(1).map((u) => ({ image: u, name: "", price: "" }));
     // the first photo is the cover and the logo is the round avatar: neither is an item
@@ -1733,6 +1811,7 @@
     const isRest = item.main_category === "restaurants";
     const st = openStatus(item);
     const items = catalogItems(item);
+    const avail = items.filter((p) => !p.sold).length;
     CT.item = item; CT.items = items; CT.shown = 6;
     const area = item.location || "";
     const subline = st
@@ -1744,7 +1823,7 @@
     if (item.subcategory) facts.push([item.subcategory, "Type"]);
     if (delVal) facts.push([delVal, "Delivery"]);
     if (isRest && st) facts.push([st.opens, "Opens"]);
-    else if (items.length) facts.push([String(items.length), isRest ? "Menu items" : "Products"]);
+    else if (avail) facts.push([String(avail), isRest ? "Menu items" : "Products"]);
     const rows = [[isRest ? "Cuisine" : "About", item.store_tagline], ["Hours", item.opening_hours], ["Delivery", del && delVal !== del ? del : ""]]
       .filter((r) => hasVal(r[1])).map((r) => [r[0], String(r[1])]);
     // a single fact doesn't deserve a box
@@ -1791,10 +1870,10 @@
     const shop = CT.item && CT.item.main_category !== "restaurants";
     grid.innerHTML = list
       .map((it, i) => {
-        const pr = priceOrNone(it.price);
+        const pr = it.sold ? "Sold out" : priceOrNone(it.price);
         const n = it.photos.length;
         const badge = n > 1 ? `<span class="ct-badge"><i class="fas fa-images" aria-hidden="true"></i>${n} photos</span>` : "";
-        return `<button type="button" class="ct-card" onclick="window.openProduct(${i})"><div class="im"><img alt="${escapeHtml(it.name || CT.item.title)}" loading="lazy" src="${escapeHtml(it.image)}">${badge}</div>${shop ? `<div class="ct-row"><div class="n">${escapeHtml(it.name || "")}</div>${pr ? `<div class="ct-p">${escapeHtml(pr)}</div>` : `<div class="ct-p none">On request</div>`}</div>` : `<div class="n">${escapeHtml(it.name || "")}</div>${pr ? `<div class="ct-p">${escapeHtml(pr)}</div>` : `<div class="ct-p none">Price on request</div>`}`}</button>`;
+        return `<button type="button" class="ct-card${it.sold ? " soldout" : ""}" onclick="window.openProduct(${i})"><div class="im"><img alt="${escapeHtml(it.name || CT.item.title)}" loading="lazy" src="${escapeHtml(it.image)}">${badge}</div>${shop ? `<div class="ct-row"><div class="n">${escapeHtml(it.name || "")}</div>${pr ? `<div class="ct-p">${escapeHtml(pr)}</div>` : `<div class="ct-p none">On request</div>`}</div>` : `<div class="n">${escapeHtml(it.name || "")}</div>${pr ? `<div class="ct-p">${escapeHtml(pr)}</div>` : `<div class="ct-p none">Price on request</div>`}`}</button>`;
       })
       .join("");
     const more = $("ctMore");
@@ -1812,7 +1891,7 @@
     const it = CT.items[PM.idx];
     if (!it) return;
     const isRest = item.main_category === "restaurants";
-    const pr = priceOrNone(it.price);
+    const pr = it.sold ? "Sold out" : priceOrNone(it.price);
     const name = it.name || (isRest ? "Menu item " : "Item ") + (PM.idx + 1);
     // photos
     $("pdSl").innerHTML = it.photos.map((u) => `<div><img alt="${escapeHtml(name)}" src="${escapeHtml(u)}"></div>`).join("");
@@ -1846,7 +1925,7 @@
     $("pdWa").href = phone ? `https://wa.me/${waNumber(phone)}?text=${encodeURIComponent(msg)}` : "#";
     $("pdWa").textContent = isRest ? "Order on WhatsApp" : "Ask on WhatsApp";
     $("pdCall").href = phone ? `tel:${phone}` : "#";
-    $("pdWa").classList.toggle("off", !phone);
+    $("pdWa").classList.toggle("off", !phone || !!it.sold);
     $("pdCall").classList.toggle("off", !phone);
     $("pdWa").onclick = () => trackContact(item.id);
     $("pdCall").onclick = () => trackContact(item.id);
@@ -2371,9 +2450,7 @@
     $("makeOtherRow").style.display = "none";
     updateDescCount();
     state.photoItems = [];
-    state.products = [];
     renderPhotoPreviews();
-    renderProductCards();
     $("uploadProgressWrap").style.display = "none";
   }
 
@@ -2451,7 +2528,6 @@
       toast(`Only ${limit} photos are allowed for this category. Extra photos were removed.`, true);
     }
     renderPhotoPreviews();
-    renderProductCards();
   }
 
   function handleSubCatChange() {
@@ -2473,11 +2549,8 @@
   // Stores and menus: the top photo block only holds the cover + the round logo (2 photos).
   // Products live in their own cards below, each with up to PHOTOS_PER_PRODUCT photos.
   // Every other category allows 10 photos.
-  const PHOTOS_PER_PRODUCT = 3;   // change this one number to allow more photos per product
-  const MAX_PRODUCTS = 30;
-  const productLimit = () => (isBiz(state.mainCategory) ? BIZ[state.mainCategory].limit : MAX_PRODUCTS);
   function photoLimit() {
-    return usesProducts(state.mainCategory) ? 2 : 10;
+    return usesProducts(state.mainCategory) ? 1 : 10;
   }
 
   function paintProgress(label, done, total) {
@@ -2510,6 +2583,7 @@
   async function addPhotoFiles(fileList) {
     const limit = photoLimit();
     const files = Array.from(fileList || []);
+    if (files.length && usesProducts(state.mainCategory)) state.photoItems = []; // a store has one logo: a new one replaces the old
     const remaining = limit - state.photoItems.length;
     const toAdd = files.slice(0, Math.max(0, remaining));
     if (files.length > toAdd.length) {
@@ -2522,8 +2596,8 @@
       paintProgress("Preparing photos…", done, total);
       try {
         if (file.size > 25 * 1024 * 1024) throw new Error("too large");
-        const ready = await preparePhoto(file);
-        const asLogo = usesProducts(state.mainCategory) && state.photoItems.some((x) => !x.isLogo) && !state.photoItems.some((x) => x.isLogo);
+        const asLogo = usesProducts(state.mainCategory);
+        const ready = asLogo ? await squarePhoto(file) : await preparePhoto(file);
         state.photoItems.push({ file: ready, url: null, preview: URL.createObjectURL(ready), name: "", price: "", isLogo: asLogo });
         renderPhotoPreviews();
       } catch (e) {
@@ -2550,28 +2624,18 @@
     if (help) {
       help.style.display = isCatalog || isStay ? "" : "none";
       help.textContent = isCatalog
-        ? "The first photo is your store cover. An optional second photo is your round logo. Add your products in the Products section below."
+        ? "This is the round picture shown on your page and cards. You'll add products after listing, from your dashboard → Edit product catalog."
         : isStay ? "Label each photo (Rooms, Pool, Restaurant…) so guests can see what each shows." : "";
     }
     row.innerHTML = state.photoItems
       .map((it, idx) => {
         const src = escapeHtml(it.preview || it.url || "");
         if (isCatalog) {
-          const isCover = idx === coverIdx;
-          const noFields = true;
           return `
         <div class="prod-row">
-          <div class="prod-thumb"><img src="${src}" alt="">${it.isLogo ? '<div class="prod-cover">LOGO</div>' : isCover ? '<div class="prod-cover">COVER</div>' : ""}</div>
-          <div class="prod-fields">${noFields
-            ? `<span class="pf-soft" style="font-size:13.5px;">${it.isLogo ? "Shown as your round logo" : "Shown at the top of your page and on cards"}</span>`
-            : `<input type="text" maxlength="80" placeholder="${itemLabel} name (optional)" value="${escapeHtml(it.name || "")}" oninput="window.setPhotoField(${idx}, 'name', this.value)">
-            <input type="text" inputmode="decimal" maxlength="20" placeholder="Price in ZMW (optional)" value="${escapeHtml(it.price || "")}" oninput="window.setPhotoField(${idx}, 'price', this.value)">`}
-          </div>
-          <div class="prod-actions">
-            ${!it.isLogo && !isCover ? `<button type="button" title="Make this the cover photo" onclick="window.makeCover(${idx})"><i class="fas fa-star"></i></button>` : ""}
-            <button type="button" title="${it.isLogo ? "Not my logo" : "Use as my logo"}" onclick="window.setLogo(${idx})"><i class="fas fa-certificate"></i></button>
-            <button type="button" class="del" title="Remove" onclick="window.removePhoto(${idx})">✕</button>
-          </div>
+          <div class="prod-thumb"><img src="${src}" alt=""><div class="prod-cover">LOGO</div></div>
+          <div class="prod-fields"><span class="pf-soft" style="font-size:13.5px;">Shown as your round logo</span></div>
+          <div class="prod-actions"><button type="button" class="del" title="Remove" onclick="window.removePhoto(${idx})">✕</button></div>
         </div>`;
         }
         if (isStay) {
@@ -2592,17 +2656,16 @@
         </div>`;
       })
       .join("");
+    const lt = $("photoLabelText"); if (lt) lt.textContent = isCatalog ? "Store logo" : "Photos";
+    const dt = $("photoDropTitle"); if (dt) dt.textContent = isCatalog ? "Tap to add your logo" : "Tap to add photos";
+    const fi = $("listingImages"); if (fi) fi.multiple = !isCatalog;
     const limit = photoLimit();
     const label = $("photoLimitLabel");
     if (label) label.textContent = `(${state.photoItems.length}/${limit})`;
     const hint = $("photoHint");
-    if (hint) hint.textContent = `Up to ${limit} photos`;
+    if (hint) hint.textContent = isCatalog ? "Square logo works best" : `Up to ${limit} photos`;
   }
 
-  /* ---- products: one card per product, up to PHOTOS_PER_PRODUCT photos each ---- */
-  let prodUid = 0;
-  const newProduct = () => ({ uid: ++prodUid, name: "", price: "", details: "", photos: [], sel: -1, busy: 0 });
-  const prodNoun = () => (isBiz(state.mainCategory) ? BIZ[state.mainCategory].itemLabel : "Product");
 
   // Square crop from the centre, shrink to 800x800 and save as JPEG (~60-140 KB), so galleries stay
   // uniform and 60 images still load fast on mobile data.
@@ -2643,115 +2706,222 @@
     return new File([blob], `${base}.jpg`, { type: "image/jpeg" });
   }
 
-  function renderProductCards() {
-    const block = $("productsBlock");
-    if (!block) return;
-    const on = usesProducts(state.mainCategory);
-    block.style.display = on ? "" : "none";
-    if (!on) return;
-    const noun = prodNoun().toLowerCase();
-    const lim = productLimit();
-    const n = state.products.length;
-    $("prodBlockTitle").textContent = isBiz(state.mainCategory) ? "Menu items" : "Products";
-    $("prodCountLabel").textContent = `(${n}/${lim})`;
-    $("prodHelp").textContent = `One card per ${noun}, with up to ${PHOTOS_PER_PRODUCT} photos each. The first photo is the cover shown in the grid. Tap a photo to make it the cover or delete it.`;
-    const addBtn = $("prodAddBtn");
-    addBtn.disabled = n >= lim;
-    addBtn.textContent = n >= lim ? `Limit reached (${lim} ${noun}s)` : `+ Add ${noun}`;
-    $("productCards").innerHTML = state.products.map((p, i) => {
-      const slots = p.photos.map((ph, k) => `
-        <div class="pslot${p.sel === k ? " sel" : ""}">
-          <img src="${escapeHtml(ph.preview || ph.url || "")}" alt="">
-          ${k === 0 ? '<span class="pslot-tag">COVER</span>' : ""}
-          <button type="button" class="pslot-tap" aria-label="Photo ${k + 1}: tap for options" onclick="window.selProdPhoto(${i}, ${k})"></button>
-        </div>`).join("");
-      const busy = p.busy ? `<div class="pslot-add" style="opacity:.6;cursor:default;"><i class="fas fa-spinner fa-spin"></i>Preparing</div>`.repeat(p.busy) : "";
-      const add = p.photos.length + p.busy < PHOTOS_PER_PRODUCT
-        ? `<label class="pslot-add"><i class="fas fa-plus"></i>Add photo<input type="file" accept="image/png,image/jpeg,image/webp,image/*" multiple onchange="window.addProdPhotos(${i}, Array.from(this.files)); this.value='';"></label>`
-        : "";
-      const act = p.sel >= 0 && p.photos[p.sel]
-        ? `<div class="pcard-act"><button type="button"${p.sel === 0 ? " disabled" : ""} onclick="window.makeProdCover(${i}, ${p.sel})">${p.sel === 0 ? "★ This is the cover" : "★ Make cover"}</button><button type="button" class="del" onclick="window.delProdPhoto(${i}, ${p.sel})">Delete photo</button></div>`
-        : "";
-      const full = p.photos.length >= PHOTOS_PER_PRODUCT;
-      return `
-      <div class="pcard">
-        <div class="pcard-top">
-          <div class="pcard-fields">
-            <input type="text" maxlength="80" placeholder="${escapeHtml(prodNoun())} name" value="${escapeHtml(p.name)}" oninput="window.setProdField(${i}, 'name', this.value)">
-            <input type="text" inputmode="decimal" maxlength="20" placeholder="Price in ZMW (optional)" value="${escapeHtml(p.price)}" oninput="window.setProdField(${i}, 'price', this.value)">
-            <input type="text" maxlength="60" placeholder="Details, e.g. New, Size M (optional)" value="${escapeHtml(p.details)}" oninput="window.setProdField(${i}, 'details', this.value)">
-          </div>
-          <button type="button" class="pcard-x" aria-label="Remove this ${noun}" onclick="window.removeProductCard(${i})">✕</button>
-        </div>
-        <div class="pcard-photos">${slots}${busy}${add}</div>
-        ${act}
-        <div class="pcard-count${full ? " full" : ""}">${p.photos.length}/${PHOTOS_PER_PRODUCT} photos${full ? " · full" : ""}</div>
-      </div>`;
-    }).join("");
+  /* ============================================================
+     PRODUCT CATALOG: sellers and managers add, edit, remove products
+     and mark them sold out, on their own page (not in the listing form)
+     ============================================================ */
+  const PHOTOS_PER_PRODUCT = 3;
+  const catLimit = (item) => (isBiz(item.main_category) ? BIZ[item.main_category].limit : 30);
+  const catNoun = (item) => (isBiz(item.main_category) ? BIZ[item.main_category].itemLabel : "Product");
+  const CM = { item: null, list: [] };
+  const PE = { idx: -1, photos: [], busy: 0, sold: false, saving: false };
+
+  function fxDialog(html, wire) {
+    $("fxDlg").innerHTML = html;
+    $("fxScrim").classList.add("on");
+    if (wire) wire();
   }
-  function addProductCard() {
-    if (state.products.length >= productLimit()) { toast(`Maximum ${productLimit()} ${prodNoun().toLowerCase()}s for this listing.`, true); return; }
-    state.products.push(newProduct());
-    renderProductCards();
-    const cards = document.querySelectorAll("#productCards .pcard");
-    if (cards.length) cards[cards.length - 1].scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }
-  function removeProductCard(i) {
-    const p = state.products[i];
-    if (!p) return;
-    if ((p.photos.length || p.name.trim()) && !confirm(`Remove this ${prodNoun().toLowerCase()} and its photos?`)) return;
-    p.photos.forEach((ph) => ph.preview && URL.revokeObjectURL(ph.preview));
-    state.products.splice(i, 1);
-    renderProductCards();
-  }
-  function setProdField(i, f, v) { if (state.products[i]) state.products[i][f] = v; }
-  function selProdPhoto(i, k) {
-    const p = state.products[i];
-    if (!p) return;
-    p.sel = p.sel === k ? -1 : k;
-    renderProductCards();
-  }
-  function makeProdCover(i, k) {
-    const p = state.products[i];
-    if (!p || !p.photos[k]) return;
-    const [ph] = p.photos.splice(k, 1);
-    p.photos.unshift(ph);
-    p.sel = -1;
-    renderProductCards();
-  }
-  function delProdPhoto(i, k) {
-    const p = state.products[i];
-    if (!p || !p.photos[k]) return;
-    const [ph] = p.photos.splice(k, 1);
-    if (ph.preview) URL.revokeObjectURL(ph.preview);
-    p.sel = -1;
-    renderProductCards();
-  }
-  async function addProdPhotos(i, files) {
-    const p = state.products[i];
-    if (!p) return;
-    const list = Array.from(files || []);
-    const room = Math.max(0, PHOTOS_PER_PRODUCT - p.photos.length - p.busy);
-    const take = list.slice(0, room);
-    if (list.length > take.length) toast(`Each ${prodNoun().toLowerCase()} can have up to ${PHOTOS_PER_PRODUCT} photos.`, true);
-    if (!take.length) return;
-    p.sel = -1;
-    p.busy += take.length;
-    renderProductCards();
-    const skipped = [];
-    for (const file of take) {
-      try {
-        if (file.size > 25 * 1024 * 1024) throw new Error("too large");
-        const ready = await squarePhoto(file);
-        if (state.products.includes(p)) p.photos.push({ file: ready, url: null, preview: URL.createObjectURL(ready) });
-      } catch (e) {
-        console.warn("Photo skipped:", file.name, e && e.message);
-        skipped.push(file.name || "a photo");
-      }
-      p.busy--;
-      renderProductCards();
+  function fxClose() { $("fxScrim").classList.remove("on"); }
+
+  async function loadListingById(id) {
+    let item = state.dashboardListings.find((l) => String(l.id) === String(id)) || state.listings.find((l) => String(l.id) === String(id));
+    if (item) return item;
+    if (supabase) {
+      const { data } = await supabase.from("listings").select("*").eq("id", id).maybeSingle();
+      if (data) return tidyListing(data);
     }
-    if (skipped.length) toast(`Couldn't read ${skipped.length} photo${skipped.length === 1 ? "" : "s"}. Save ${skipped.length === 1 ? "it" : "them"} to your phone and pick again.`, true);
+    return null;
+  }
+
+  async function openCatalog(id) {
+    const item = await loadListingById(id);
+    if (!item) { toast("Couldn't open that listing.", true); return; }
+    CM.item = item;
+    CM.list = catalogBase(item).map((p) => Object.assign({}, p));
+    paintCatalogPage();
+    $("catalogPage").style.display = "flex";
+    $("cmBody").scrollTop = 0;
+    document.body.style.overflow = "hidden";
+  }
+  function closeCatalog() {
+    $("catalogPage").style.display = "none";
+    document.body.style.overflow = "";
+  }
+
+  function paintCatalogPage() {
+    const item = CM.item;
+    const isRest = isBiz(item.main_category);
+    const noun = catNoun(item).toLowerCase();
+    const n = CM.list.length, soldN = CM.list.filter((p) => p.sold).length, lim = catLimit(item);
+    $("cmTitle").textContent = isRest ? "Menu" : "Product catalog";
+    const rows = CM.list.map((p, i) => {
+      const pr = priceOrNone(p.price);
+      const sub = [pr, p.details].filter(Boolean).join(" · ") || "No price set";
+      return `<li class="cm-row${p.sold ? " sold" : ""}">
+        <button type="button" class="cm-main" onclick="window.openProdEditor(${i})">
+          <span class="cm-img"><img alt="" loading="lazy" src="${escapeHtml(p.image || "")}"></span>
+          <span class="cm-txt"><span class="cm-name">${escapeHtml(p.name || "Untitled")}</span><span class="cm-sub">${escapeHtml(sub)}</span>${p.sold ? '<span class="cm-flag">Sold out</span>' : ""}</span>
+        </button>
+        <div class="cm-act">
+          <button type="button" onclick="window.openProdEditor(${i})">Edit</button>
+          <button type="button" onclick="window.cmToggleSold(${i})">${p.sold ? "Mark available" : "Mark sold out"}</button>
+          <button type="button" class="del" onclick="window.cmDelete(${i})">Delete</button>
+        </div></li>`;
+    }).join("");
+    $("cmBody").innerHTML = `
+      <div class="cm-store">${escapeHtml(item.title)}</div>
+      <div class="cm-sum">${n} ${noun}${n === 1 ? "" : "s"}${n ? ` · ${n - soldN} available${soldN ? ` · ${soldN} sold out` : ""}` : ""} · limit ${lim}</div>
+      <button type="button" class="cm-add" onclick="window.openProdEditor(-1)">+ Add ${noun}</button>
+      ${n ? `<ul class="cm-list">${rows}</ul>` : `<p class="cm-empty">No ${noun}s yet. Tap “Add ${noun}” to list your first one.</p>`}`;
+  }
+
+  // saves the whole product list (and keeps the store's cover images in step)
+  async function persistCatalog(next) {
+    const item = CM.item;
+    const oldPhotos = new Set(CM.list.flatMap((p) => p.photos || []));
+    const first = (item.images || [])[0];
+    const cover = first && !oldPhotos.has(first) && first !== item.logo ? first : null; // legacy store cover
+    const products = next.map((p) => {
+      const photos = (p.photos && p.photos.length ? p.photos : [p.image]).filter(Boolean);
+      return Object.assign({ image: photos[0], photos, name: p.name || "", price: p.price || "", details: p.details || "" }, p.sold ? { sold: true } : {});
+    });
+    const images = (cover ? [cover] : []).concat(products.map((p) => p.image));
+    try {
+      if (supabase) {
+        const { data, error } = await supabase.from("listings").update({ products, images }).eq("id", item.id).select("id");
+        if (error) throw error;
+        if (!data || !data.length) throw new Error("You don't have permission to edit this listing.");
+      }
+      Object.assign(item, { products, images });
+      CM.list = products;
+      paintCatalogPage();
+      fetchListings();
+      return true;
+    } catch (e) {
+      console.error(e);
+      toast("Couldn't save your changes. Check your connection and try again.", true);
+      return false;
+    }
+  }
+
+  async function cmToggleSold(i) {
+    const p = CM.list[i];
+    if (!p) return;
+    const next = CM.list.map((x, k) => (k === i ? Object.assign({}, x, { sold: !x.sold }) : x));
+    if (await persistCatalog(next)) toast(p.sold ? "Marked as available" : "Marked as sold out");
+  }
+  function cmDelete(i) {
+    const p = CM.list[i];
+    if (!p) return;
+    fxDialog(`<h3 style="margin:0">Delete ${escapeHtml(p.name || "this item")}?</h3><p>It will be removed from your store. This can’t be undone.</p><div class="a"><button id="fxNo">Cancel</button><button class="go" id="fxYes">Delete</button></div>`, () => {
+      $("fxNo").onclick = fxClose;
+      $("fxYes").onclick = async () => {
+        fxClose();
+        if (await persistCatalog(CM.list.filter((_, k) => k !== i))) { toast("Deleted"); closeProdEditor(); }
+      };
+    });
+  }
+
+  // ---- one product: add or edit ----
+  function openProdEditor(i) {
+    const item = CM.item;
+    const p = i >= 0 ? CM.list[i] : null;
+    const noun = catNoun(item).toLowerCase();
+    if (!p && CM.list.length >= catLimit(item)) { toast(`You've reached the limit of ${catLimit(item)} ${noun}s.`, true); return; }
+    PE.idx = i; PE.busy = 0; PE.saving = false; PE.sold = !!(p && p.sold);
+    PE.photos = p ? (p.photos || [p.image]).filter(Boolean).map((u) => ({ file: null, url: u, preview: null })) : [];
+    $("peTitle").textContent = p ? `Edit ${noun}` : `Add ${noun}`;
+    $("peBody").innerHTML = `
+      <div class="pe-sec"><div class="pe-lbl">Photos <span id="peCount"></span></div><div class="pe-photos" id="pePhotos"></div>
+        <p class="pe-help">The first photo is the cover shown in your store. Up to ${PHOTOS_PER_PRODUCT} photos.</p></div>
+      <div class="pf"><label class="pf-label" for="pe_name">${escapeHtml(catNoun(item))} name <i class="req">*</i></label><input type="text" id="pe_name" maxlength="80" value="${escapeHtml(p ? p.name : "")}" placeholder="e.g. Google Pixel 8 128GB"></div>
+      <div class="pf"><label class="pf-label" for="pe_price">Price in ZMW <span class="pf-soft">(optional)</span></label><input type="text" id="pe_price" inputmode="decimal" maxlength="20" value="${escapeHtml(p ? p.price : "")}"></div>
+      <div class="pf"><label class="pf-label" for="pe_details">Details <span class="pf-soft">(optional)</span></label><input type="text" id="pe_details" maxlength="60" value="${escapeHtml(p ? p.details : "")}" placeholder="e.g. New, Size M, Black"></div>
+      <div class="pe-links"><button type="button" id="peSold" onclick="window.peToggleSold()"></button>${p ? '<button type="button" class="del" onclick="window.cmDelete(' + i + ')">Delete this ' + noun + "</button>" : ""}</div>`;
+    paintPePhotos();
+    paintPeSold();
+    $("prodEditPage").style.display = "flex";
+    $("peBody").scrollTop = 0;
+  }
+  function closeProdEditor() { $("prodEditPage").style.display = "none"; }
+  function paintPeSold() { const b = $("peSold"); if (b) b.textContent = PE.sold ? "Sold out · tap to mark available" : "Mark as sold out"; }
+  function peToggleSold() { PE.sold = !PE.sold; paintPeSold(); }
+  function paintPePhotos() {
+    const slots = PE.photos.map((ph, k) => `<div class="pe-slot"><img alt="" src="${escapeHtml(ph.preview || ph.url || "")}"><div class="pe-sa">${k === 0 ? "<span>Cover</span>" : `<button type="button" onclick="window.peCover(${k})">Make cover</button>`}<button type="button" class="del" onclick="window.peRemove(${k})">Remove</button></div></div>`).join("");
+    const busy = '<div class="pe-slot pe-add"><i class="fas fa-spinner fa-spin"></i></div>'.repeat(PE.busy);
+    const add = PE.photos.length + PE.busy < PHOTOS_PER_PRODUCT
+      ? `<label class="pe-slot pe-add"><i class="fas fa-plus"></i><span>Add photo</span><input type="file" accept="image/*" multiple onchange="window.peAddPhotos(Array.from(this.files)); this.value='';"></label>` : "";
+    $("pePhotos").innerHTML = slots + busy + add;
+    $("peCount").textContent = `(${PE.photos.length}/${PHOTOS_PER_PRODUCT})`;
+  }
+  function peCover(k) { const [ph] = PE.photos.splice(k, 1); PE.photos.unshift(ph); paintPePhotos(); }
+  function peRemove(k) { PE.photos.splice(k, 1); paintPePhotos(); }
+  async function peAddPhotos(files) {
+    const room = Math.max(0, PHOTOS_PER_PRODUCT - PE.photos.length - PE.busy);
+    const take = files.slice(0, room);
+    if (files.length > take.length) toast(`Up to ${PHOTOS_PER_PRODUCT} photos per item.`, true);
+    if (!take.length) return;
+    PE.busy += take.length;
+    paintPePhotos();
+    let bad = 0;
+    for (const f of take) {
+      try {
+        if (f.size > 25 * 1024 * 1024) throw new Error("too large");
+        const ready = await squarePhoto(f);
+        PE.photos.push({ file: ready, url: null, preview: URL.createObjectURL(ready) });
+      } catch (e) { bad++; }
+      PE.busy--;
+      paintPePhotos();
+    }
+    if (bad) toast(`Couldn't read ${bad} photo${bad === 1 ? "" : "s"}. Try another.`, true);
+  }
+  async function uploadOne(file) {
+    if (!supabase) return URL.createObjectURL(file);
+    const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+    const path = `listings/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    let last;
+    for (let a = 1; a <= 3; a++) {
+      const { error } = await supabase.storage.from("listing-photos").upload(path, file, { contentType: file.type || "image/jpeg" });
+      if (!error) return supabase.storage.from("listing-photos").getPublicUrl(path).data.publicUrl;
+      last = error;
+      await new Promise((r) => setTimeout(r, 600 * a));
+    }
+    throw last;
+  }
+  async function saveProduct() {
+    if (PE.saving) return;
+    const name = tidyTitle($("pe_name").value.trim());
+    if (!name) { toast("Please enter a name.", true); return; }
+    if (PE.busy) { toast("Photos are still being prepared. Try again in a moment.", true); return; }
+    if (!PE.photos.length) { toast("Add at least one photo.", true); return; }
+    PE.saving = true;
+    const btn = $("peSave");
+    btn.disabled = true; btn.textContent = "Saving…";
+    try {
+      for (const ph of PE.photos) if (!ph.url) ph.url = await uploadOne(ph.file);
+      const urls = PE.photos.map((p) => p.url);
+      const prod = Object.assign({ image: urls[0], photos: urls, name, price: $("pe_price").value.trim(), details: $("pe_details").value.trim() }, PE.sold ? { sold: true } : {});
+      const next = CM.list.slice();
+      const adding = PE.idx < 0;
+      if (adding) next.unshift(prod); else next[PE.idx] = prod;
+      if (await persistCatalog(next)) { closeProdEditor(); toast(adding ? "Added" : "Saved"); }
+    } catch (e) {
+      console.error(e);
+      toast("A photo didn't upload. Check your connection and tap Save again.", true);
+    } finally {
+      PE.saving = false;
+      btn.disabled = false; btn.textContent = "Save";
+    }
+  }
+
+  // after a store / restaurant is listed
+  function promptAddProducts(id, cat) {
+    const isRest = isBiz(cat);
+    const what = isRest ? "menu items" : "products";
+    fxDialog(`<h3 style="margin:0">${isRest ? "Restaurant" : "Store"} listed</h3><p>Next, add your ${what} so shoppers can find them.</p><div class="a"><button id="fxNo">Later</button><button class="go" id="fxYes" style="background:var(--violet);border-color:var(--violet)">Add ${what}</button></div>`, () => {
+      $("fxNo").onclick = fxClose;
+      $("fxYes").onclick = () => { fxClose(); openCatalog(id); };
+    });
   }
 
   /* ---- rooms and rates (accommodation) ---- */
@@ -2807,7 +2977,7 @@
   // Photos that succeed keep their URL, so pressing Submit again only retries the ones that failed.
   async function uploadPhotos() {
     const items = state.photoItems;
-    const prodPhotos = usesProducts(state.mainCategory) ? state.products.flatMap((p) => p.photos) : [];
+    const prodPhotos = [];
     if (!items.length && !prodPhotos.length) return { photos: [], failed: 0, firstError: "" };
     if (!supabase) {
       prodPhotos.forEach((ph) => { ph.url = ph.url || ph.preview; });
@@ -2910,11 +3080,6 @@
     if (!payload.title) return "Please enter a listing title.";
     if (!["stores", "accommodation"].includes(state.mainCategory) && !isBiz(state.mainCategory) && !payload.seller_name) return "Please enter a business or seller name.";
     if (!payload.phone) return "Please enter a WhatsApp or phone number.";
-    if (usesProducts(state.mainCategory)) {
-      if (state.products.some((p) => p.busy)) return "Photos are still being prepared. Wait a moment and tap Submit again.";
-      const bad = state.products.findIndex((p) => !p.photos.length && (p.name.trim() || p.price.trim() || p.details.trim()));
-      if (bad > -1) return `${prodNoun()} ${bad + 1} needs at least one photo. Add one or remove the card.`;
-    }
     if (state.mainCategory === "accommodation" && !(payload.rooms && payload.rooms.length)) return "Add at least one room type with a price per night.";
     if ((payload.description || "").length < 40) return `Please write at least 40 characters in the description (${40 - (payload.description || "").length} more).`;
     if ((state.mainCategory === "stores" || state.mainCategory === "accommodation" || state.mainCategory === "housing" || isBiz(state.mainCategory)) && !payload.subcategory) {
@@ -2939,41 +3104,37 @@
         toast(`${failed} photo${failed === 1 ? "" : "s"} didn't upload (${firstError}). Check your connection and tap Submit again — nothing was posted.`, true);
         return;
       }
-      const logoPhoto = uploaded.find((p) => p.isLogo);
       const rest = uploaded.filter((p) => !p.isLogo);
       payload.images = rest.map((p) => p.url);
       if (usesProducts(payload.main_category)) {
+        // stores and restaurants only upload a logo here; products live in the catalog page
+        const logoPhoto = uploaded.find((p) => p.isLogo);
         payload.logo = logoPhoto ? logoPhoto.url : null;
-        // every product card keeps its own photos; the first one is its cover
-        payload.products = state.products
-          .filter((p) => p.photos.some((ph) => ph.url))
-          .map((p) => {
-            const urls = p.photos.filter((ph) => ph.url).map((ph) => ph.url);
-            return {
-              image: urls[0],
-              photos: urls,
-              name: tidyTitle(String(p.name || "").trim()),
-              price: String(p.price || "").trim(),
-              details: String(p.details || "").trim()
-            };
-          });
-        // images = store cover (if any) followed by each product's cover
-        payload.images = rest.map((p) => p.url).concat(payload.products.map((p) => p.image));
+        delete payload.images;
+        if (!state.sellerEditId) { payload.images = []; payload.products = []; }
       }
       if (payload.main_category === "accommodation") payload.photo_labels = rest.map((p) => p.label || "");
-      payload.created_at = new Date().toISOString();
-      if (state.user) payload.owner_id = state.user.id || state.user.email;
+      const wasNew = !state.sellerEditId;
+      let newId = null;
+      if (wasNew) {
+        payload.created_at = new Date().toISOString();
+        if (state.user) payload.owner_id = state.user.id || state.user.email;
+      } else if (!state.isAdmin && ADMIN_CATS.includes(payload.main_category)) {
+        delete payload.status; // managers edit a live listing without sending it back to review
+      }
 
       if (supabase) {
         if (state.sellerEditId) {
           const { error } = await supabase.from("listings").update(payload).eq("id", state.sellerEditId);
           if (error) throw error;
         } else {
-          const { error } = await supabase.from("listings").insert(payload);
-          if (error) throw error;
+          const res = await supabase.from("listings").insert(payload).select("id").maybeSingle();
+          if (res.error) throw res.error;
+          newId = res.data && res.data.id;
         }
       } else {
         payload.id = state.sellerEditId || "local_" + Date.now();
+        newId = payload.id;
         payload.status = "pending";
         const idx = state.listings.findIndex((l) => l.id === payload.id);
         if (idx > -1) state.listings[idx] = payload;
@@ -2984,6 +3145,7 @@
       closeSellerPanel();
       await fetchListings();
       if ($("view-dashboard").classList.contains("active")) showDashboard();
+      if (wasNew && usesProducts(payload.main_category) && newId) promptAddProducts(newId, payload.main_category);
     } catch (e) {
       console.error(e);
       toast("Could not submit listing. Try again.", true);
@@ -3044,18 +3206,8 @@
     const imgs = item.images || [];
     const byUrl = new Map((item.products || []).map((p) => [p.image, p]));
     const labels = item.photo_labels || [];
-    state.products = [];
     if (usesProducts(item.main_category)) {
-      const prods = getProducts(item);
-      const photosOf = (p) => (Array.isArray(p.photos) && p.photos.length ? p.photos : [p.image]).filter(Boolean);
-      const inProducts = new Set(prods.flatMap(photosOf));
-      state.products = prods.map((p) => Object.assign(newProduct(), {
-        name: p.name || "", price: p.price || "", details: p.details || "",
-        photos: photosOf(p).slice(0, PHOTOS_PER_PRODUCT).map((u) => ({ file: null, url: u, preview: null }))
-      }));
-      // the store cover is images[0] unless that photo is simply the first product's cover
-      state.photoItems = imgs[0] && !inProducts.has(imgs[0]) ? [{ file: null, url: imgs[0], preview: null, name: "", price: "", label: "" }] : [];
-      if (item.logo) state.photoItems.unshift({ file: null, url: item.logo, preview: null, name: "", price: "", isLogo: true });
+      state.photoItems = item.logo ? [{ file: null, url: item.logo, preview: null, name: "", price: "", isLogo: true }] : [];
     } else {
       state.photoItems = imgs.map((u, i) => {
         const p = byUrl.get(u) || {};
@@ -3063,7 +3215,6 @@
       });
     }
     renderPhotoPreviews();
-    renderProductCards();
     updateDescCount();
 
     showPostStep(2);
@@ -3127,7 +3278,8 @@
     const desc = String(x.description || "").trim();
     if (desc.length < 40) out.push({ t: desc ? "Description is too short" : "No description", d: `Write at least 40 characters (now ${desc.length}). Say what makes it worth buying.` });
     const photos = (x.images || []).length;
-    if (photos === 0) out.push({ t: "No photos", d: "Add clear photos so buyers can see what they’re getting." });
+    if (usesProducts(x.main_category)) { if (!catalogBase(x).length) out.push({ t: "No products yet", d: "Add products in the product catalog so shoppers can find them." }); }
+    else if (photos === 0) out.push({ t: "No photos", d: "Add clear photos so buyers can see what they’re getting." });
     else if (photos < 3) out.push({ t: `Only ${photos} photo${photos === 1 ? "" : "s"}`, d: "Add at least 3 photos: front, side and inside." });
     if (x.main_category === "vehicles" && x.make && title && !title.toLowerCase().includes(String(x.make).toLowerCase())) out.push({ t: "Title and details don’t match", d: `The make is ${x.make} but the title doesn’t mention it.` });
     if (x.main_category === "housing" && hasVal(x.bedrooms)) {
@@ -3164,9 +3316,21 @@
     try {
       if (supabase) {
         const ownerId = state.user.id || state.user.email;
-        const { data, error } = await supabase.from("listings").select("*").eq("owner_id", ownerId).order("created_at", { ascending: false }).range(0, 999);
-        if (error) throw error;
-        state.dashboardListings = (data || []).map(tidyListing);
+        const email = String(state.user.email || "").toLowerCase();
+        const [own, links] = await Promise.all([
+          supabase.from("listings").select("*").eq("owner_id", ownerId).order("created_at", { ascending: false }).range(0, 999),
+          email ? supabase.from("listing_managers").select("listing_id").eq("manager_email", email) : Promise.resolve({ data: [] })
+        ]);
+        if (own.error) throw own.error;
+        const rows = own.data || [];
+        const ids = (links.data || []).map((r) => r.listing_id).filter((id) => !rows.some((x) => String(x.id) === String(id)));
+        const managed = new Set(ids.map(String));
+        if (ids.length) {
+          const m = await supabase.from("listings").select("*").in("id", ids);
+          (m.data || []).forEach((x) => rows.push(x));
+        }
+        state.dashboardListings = rows.map(tidyListing).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        state.dashboardListings.forEach((x) => { x._managed = managed.has(String(x.id)); });
         DB.stats = {};
         const res = await rpc("my_listing_stats");
         (res.data || []).forEach((r) => { DB.stats[r.listing_id] = { views: +r.views, contacts: +r.contacts, v30: +r.views_30, c30: +r.contacts_30 }; });
@@ -3185,7 +3349,8 @@
     if (counts.data) DB.mod.counts = counts.data;
   }
   async function reloadView() {
-    if (isMod()) await loadMod(); else await loadMine();
+    if (DB.view === "mgr") await loadMgr();
+    else if (isMod()) await loadMod(); else await loadMine();
     renderDashboard();
   }
 
@@ -3200,10 +3365,63 @@
     $("dbQ").value = "";
     renderDashboard();
     await Promise.all([loadMine(), loadNotes(), loadLimits(), state.isAdmin ? loadSummary() : null]);
+    if (DB.view === "mgr") await loadMgr();
     if (isMod()) await loadMod();
     renderDashboard();
   }
   const showAdmin = () => showDashboard("mod");
+
+  /* ============================================================
+     LISTING MANAGERS (admin appoints someone, by email, to manage one listing)
+     ============================================================ */
+  const MG = { listings: [], rows: [], error: "" };
+  async function loadMgr() {
+    MG.error = "";
+    if (!supabase) { MG.listings = []; MG.rows = []; return; }
+    const [ls, ms] = await Promise.all([
+      supabase.from("listings").select("id,title,main_category,location").in("main_category", ADMIN_CATS).order("title"),
+      supabase.from("listing_managers").select("*").order("created_at", { ascending: false })
+    ]);
+    MG.listings = ls.data || [];
+    MG.rows = ms.data || [];
+    if (ms.error) { console.error(ms.error); MG.error = "Managers aren't set up yet. Run managers.sql in Supabase first."; }
+  }
+  function renderMgr() {
+    const sel = $("mgListing"), keep = sel.value;
+    sel.innerHTML = '<option value="">Choose a listing…</option>' + MG.listings.map((l) => `<option value="${escapeHtml(String(l.id))}">${escapeHtml(l.title)} · ${escapeHtml(catName(l.main_category))}</option>`).join("");
+    if (keep) sel.value = keep;
+    const title = (id) => { const l = MG.listings.find((x) => String(x.id) === String(id)); return l ? l.title : "Deleted listing"; };
+    $("mgList").innerHTML = MG.error
+      ? `<p class="db-empty">${escapeHtml(MG.error)}</p>`
+      : MG.rows.length
+        ? MG.rows.map((r) => `<div class="mg-row"><div><b>${escapeHtml(title(r.listing_id))}</b><span>${escapeHtml(r.manager_email)}</span></div><button type="button" data-rm="${escapeHtml(String(r.id))}">Remove</button></div>`).join("")
+        : '<p class="db-empty">No managers yet.</p>';
+  }
+  async function addManager() {
+    const id = $("mgListing").value;
+    const email = $("mgEmail").value.trim().toLowerCase();
+    if (!id) { toast("Choose a listing first.", true); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast("Enter a valid email address.", true); return; }
+    const { error } = await supabase.from("listing_managers").insert({ listing_id: String(id), manager_email: email });
+    if (error) { toast(error.code === "23505" ? "That person already manages this listing." : "Couldn't appoint the manager.", true); console.error(error); return; }
+    $("mgEmail").value = "";
+    toast("Manager appointed");
+    await loadMgr(); renderMgr();
+  }
+  function removeManager(rid) {
+    const r = MG.rows.find((x) => String(x.id) === String(rid));
+    if (!r) return;
+    fxDialog(`<h3 style="margin:0">Remove manager?</h3><p>${escapeHtml(r.manager_email)} will lose access to this listing.</p><div class="a"><button id="fxNo">Cancel</button><button class="go" id="fxYes">Remove</button></div>`, () => {
+      $("fxNo").onclick = fxClose;
+      $("fxYes").onclick = async () => {
+        fxClose();
+        const { error } = await supabase.from("listing_managers").delete().eq("id", rid);
+        if (error) { toast("Couldn't remove the manager.", true); return; }
+        toast("Manager removed");
+        await loadMgr(); renderMgr();
+      };
+    });
+  }
 
   // ---- one list for both roles ----
   function mineFiltered(ignoreTab) {
@@ -3240,7 +3458,7 @@
       else if (x.status === "pending") flag = issues ? `<div class="db-flag">${issues} to check</div>` : `<div class="db-flag ok">No issues found</div>`;
     } else {
       const st = dbStat(x);
-      meta = `${escapeHtml(catName(x.main_category))} · ${dbAgo(dbDays(x))} · ${st.views} view${st.views === 1 ? "" : "s"} · ${st.contacts} contact${st.contacts === 1 ? "" : "s"}`;
+      meta = `${escapeHtml(catName(x.main_category))}${x._managed ? " · You manage this" : ""} · ${dbAgo(dbDays(x))} · ${st.views} view${st.views === 1 ? "" : "s"} · ${st.contacts} contact${st.contacts === 1 ? "" : "s"}`;
       if (x.status === "rejected") flag = `<div class="db-flag">${x.review_kind === "changes" ? "Changes needed" : "Tap to see why"}</div>`;
       else if (x.status === "pending" && issues) flag = `<div class="db-flag">${issues} to fix</div>`;
     }
@@ -3253,8 +3471,12 @@
 
   function renderDashboard() {
     const mod = isMod();
+    const mgr = DB.view === "mgr" && state.isAdmin;
+    $("dbMain").style.display = mgr ? "none" : "";
+    $("dbMgr").style.display = mgr ? "" : "none";
     $("dbSeg").style.display = state.isAdmin ? "" : "none";
     $("dbSeg").querySelectorAll("button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.v === DB.view)));
+    if (mgr) { $("dbNotes").innerHTML = ""; paintBadges(); renderMgr(); return; }
     $("dbH1").textContent = mod ? "Moderation" : "My listings";
     $("dbAdd").style.display = mod ? "none" : "";
     $("dbQ").placeholder = mod ? "Search by title or seller" : "Search your listings";
@@ -3315,11 +3537,14 @@
     DB.menuId = id;
     const x = dbGet(id);
     if (!x) return;
-    $("dbSheet").innerHTML =
-      `<h3>${escapeHtml(x.title)}</h3><button data-a="edit">Edit listing</button><button data-a="view">View public page</button>` +
-      (x.status === "sold" ? '<button data-a="relist">Relist</button>' : x.status === "published" ? '<button data-a="sold">Mark as sold</button>' : "") +
-      (x.status === "published" ? '<button data-a="renew">Renew (move to top)</button>' : "") +
-      '<button class="del" data-a="del">Delete…</button>';
+    const btns = [["edit", "Edit listing"]];
+    if (usesProducts(x.main_category)) btns.push(["catalog", isBiz(x.main_category) ? "Edit menu" : "Edit product catalog"]);
+    btns.push(["view", "View public page"]);
+    if (x.status === "sold") btns.push(["relist", "Relist"]);
+    else if (x.status === "published" && !ADMIN_CATS.includes(x.main_category)) btns.push(["sold", "Mark as sold"]);
+    if (x.status === "published" && !x._managed) btns.push(["renew", "Renew (move to top)"]);
+    $("dbSheet").innerHTML = `<h3>${escapeHtml(x.title)}</h3>` + btns.map((b) => `<button data-a="${b[0]}">${b[1]}</button>`).join("") +
+      (x._managed ? "" : '<button class="del" data-a="del">Delete…</button>');
     // re-attach every time: openReasonSheet() replaces this handler on the same element
     $("dbSheet").onclick = function (e) {
       const b = e.target.closest("[data-a]");
@@ -3338,6 +3563,7 @@
     const x = dbGet(id);
     if (!x) return;
     if (a === "edit") return editListing(id);
+    if (a === "catalog") return openCatalog(id);
     if (a === "view") return openDetail(id);
     if (a === "del") return dbConfirmDelete([id]);
     if (a === "sold") { if (await dbRpc("set_listing_sold", { p_id: id, p_sold: true })) { x.status = "sold"; toast("Marked as sold"); } else toast("Couldn't update that listing.", true); }
@@ -3427,7 +3653,9 @@
       else if (x.status === "rejected") bar = '<button class="go" data-a="approve">Approve</button>';
       else bar = '<button class="no" data-a="takedown">Take down</button>' + (reports.length ? '<button class="go" data-a="dismiss">Dismiss reports</button>' : '<button data-a="close">Close</button>');
     } else {
-      bar = x.status === "published" ? '<button data-a="edit">Edit listing</button><button data-a="sold">Mark sold</button>' : x.status === "sold" ? '<button data-a="edit">Edit listing</button><button data-a="relist">Relist</button>' : `<button class="go" data-a="edit">${x.status === "rejected" ? "Edit and resubmit" : "Edit listing"}</button>`;
+      if (usesProducts(x.main_category)) bar = `<button data-a="edit">Edit listing</button><button class="go" data-a="catalog">${isBiz(x.main_category) ? "Edit menu" : "Edit product catalog"}</button>`;
+      else if (ADMIN_CATS.includes(x.main_category)) bar = '<button class="go" data-a="edit">Edit listing</button>';
+      else bar = x.status === "published" ? '<button data-a="edit">Edit listing</button><button data-a="sold">Mark sold</button>' : x.status === "sold" ? '<button data-a="edit">Edit listing</button><button data-a="relist">Relist</button>' : `<button class="go" data-a="edit">${x.status === "rejected" ? "Edit and resubmit" : "Edit listing"}</button>`;
     }
     $("rvBar").innerHTML = bar;
   }
@@ -3496,6 +3724,9 @@
 
   function setupDashboard() {
     let tm;
+    $("mgAdd").onclick = addManager;
+    $("mgList").onclick = (e) => { const b = e.target.closest("[data-rm]"); if (b) removeManager(b.dataset.rm); };
+    $("fxScrim").onclick = function (e) { if (e.target === this) fxClose(); };
     $("dbQ").oninput = function () {
       clearTimeout(tm);
       const v = this.value.trim().toLowerCase();
@@ -3632,13 +3863,6 @@
   window.postBack = postBack;
   window.setPhotoField = setPhotoField;
   window.makeCover = makeCover;
-  window.addProductCard = addProductCard;
-  window.removeProductCard = removeProductCard;
-  window.setProdField = setProdField;
-  window.selProdPhoto = selProdPhoto;
-  window.makeProdCover = makeProdCover;
-  window.delProdPhoto = delProdPhoto;
-  window.addProdPhotos = addProdPhotos;
   window.setLogo = setLogo;
   window.setRoom = setRoom;
   window.addRoom = addRoom;
@@ -3715,7 +3939,17 @@
 
   // web+findorah: links  (e.g. web+findorah:listing/<id>, web+findorah:housing, web+findorah:new)
   function handleProtocolLink() {
-    const raw = new URLSearchParams(location.search).get("protocol");
+    const params = new URLSearchParams(location.search);
+    const lid = params.get("listing"), term = params.get("q");
+    if (lid || term) {
+      history.replaceState(null, "", location.pathname);
+      if (lid) {
+        const hit = state.listings.find((l) => String(l.id).toLowerCase() === lid.toLowerCase());
+        hit ? openDetail(hit.id) : toast("That listing is no longer available.", true);
+      } else openSearchResults(term.slice(0, 80));
+      return;
+    }
+    const raw = params.get("protocol");
     if (!raw) return;
     history.replaceState(null, "", location.pathname);
     const path = decodeURIComponent(raw).replace(/^web\+findorah:/i, "").replace(/^\/+/, "").toLowerCase();
@@ -3770,6 +4004,9 @@
 
   // Returns true if it closed something or went back a page
   function handleBackAction() {
+    if ($("fxScrim") && $("fxScrim").classList.contains("on")) { fxClose(); return true; }
+    if (isShown("prodEditPage")) { closeProdEditor(); return true; }
+    if (isShown("catalogPage")) { closeCatalog(); return true; }
     if ($("dbDlgS") && $("dbDlgS").classList.contains("on")) { $("dbDlgS").classList.remove("on"); return true; }
     if ($("dbSheetS") && $("dbSheetS").classList.contains("on")) { $("dbSheetS").classList.remove("on"); return true; }
     if ($("rv") && $("rv").classList.contains("open")) { closeReview(); return true; }
@@ -3938,6 +4175,17 @@
   window.trackContact = trackContact;
   window.toggleSave = toggleSave;
   window.showAdmin = showAdmin;
+  window.openCatalog = openCatalog;
+  window.closeCatalog = closeCatalog;
+  window.openProdEditor = openProdEditor;
+  window.closeProdEditor = closeProdEditor;
+  window.saveProduct = saveProduct;
+  window.cmToggleSold = cmToggleSold;
+  window.cmDelete = cmDelete;
+  window.peToggleSold = peToggleSold;
+  window.peCover = peCover;
+  window.peRemove = peRemove;
+  window.peAddPhotos = peAddPhotos;
 
   /* ----------------------------------------------------------
      INIT

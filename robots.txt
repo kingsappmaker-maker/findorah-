@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /share-target
+
+Sitemap: https://findorah.com/sitemap.xml
